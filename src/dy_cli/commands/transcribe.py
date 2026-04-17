@@ -12,6 +12,8 @@ from dy_cli.services.whisper_webservice import WhisperWebserviceClient, WhisperW
 from dy_cli.services.transcribe_state import init_progress, mark_progress, save_progress, write_transcript_json
 from dy_cli.utils.output import info, success, warning
 
+AUDIO_EXTENSIONS = {".aac", ".flac", ".m4a", ".mp3", ".ogg", ".wav"}
+
 
 @click.command("transcribe", help="转写本地视频为文本 JSON")
 @click.argument("path", type=click.Path(exists=True, path_type=str))
@@ -39,11 +41,11 @@ def _transcribe_dir(
     delete_video: bool,
     limit: int,
 ) -> None:
-    files = sorted(name for name in os.listdir(path) if name.lower().endswith(".mp4"))
+    files = sorted(name for name in os.listdir(path) if _is_supported_media_file(name))
     if limit > 0:
         files = files[:limit]
     if not files:
-        warning("目录下未找到 mp4 文件")
+        warning("目录下未找到支持的音视频文件")
         return
 
     progress_path = os.path.join(path, "transcribe_progress.json")
@@ -81,10 +83,12 @@ def _transcribe_file(
         info(f"已存在转写结果，跳过: {os.path.basename(path)}")
         return
 
-    audio_path = os.path.splitext(path)[0] + ".transcribe.mp3"
-    temp_audio_path = os.path.splitext(path)[0] + ".transcribe.part.mp3"
-    extract_audio(path, temp_audio_path)
-    os.replace(temp_audio_path, audio_path)
+    source_is_audio = _is_audio_file(path)
+    audio_path = path if source_is_audio else os.path.splitext(path)[0] + ".transcribe.mp3"
+    if not source_is_audio:
+        temp_audio_path = os.path.splitext(path)[0] + ".transcribe.part.mp3"
+        extract_audio(path, temp_audio_path)
+        os.replace(temp_audio_path, audio_path)
 
     try:
         result = client.transcribe(audio_path)
@@ -101,10 +105,10 @@ def _transcribe_file(
         }
         write_transcript_json(output_json, payload)
         success(f"转写成功: {os.path.basename(output_json)}")
-        if delete_video and os.path.exists(path):
+        if delete_video and not source_is_audio and os.path.exists(path):
             os.remove(path)
     finally:
-        keep_audio = audio_keep or delete_video
+        keep_audio = source_is_audio or audio_keep or delete_video
         if not keep_audio and os.path.exists(audio_path):
             os.remove(audio_path)
 
@@ -136,3 +140,12 @@ def _load_or_init_progress(progress_path: str, root_dir: str, files: list[str]) 
     progress = init_progress(root_dir, files)
     save_progress(progress_path, progress)
     return progress
+
+
+def _is_audio_file(path: str) -> bool:
+    return os.path.splitext(path)[1].lower() in AUDIO_EXTENSIONS
+
+
+def _is_supported_media_file(path: str) -> bool:
+    suffix = os.path.splitext(path)[1].lower()
+    return suffix == ".mp4" or suffix in AUDIO_EXTENSIONS

@@ -2,7 +2,9 @@
 import os
 
 import pytest
+from click.testing import CliRunner
 
+from dy_cli.main import cli
 from dy_cli.utils import config
 
 
@@ -59,6 +61,12 @@ class TestGetSet:
         config.save_config(config.DEFAULT_CONFIG)
         config.set_value("custom.nested.key", "value")
         assert config.get("custom.nested.key") == "value"
+
+    def test_cli_set_parses_json_object(self):
+        result = CliRunner().invoke(cli, ["config", "set", "asr.replace_map", '{"龙非":"龙飞"}'])
+
+        assert result.exit_code == 0
+        assert config.get("asr.replace_map") == {"龙非": "龙飞"}
 
 
 class TestDeepMerge:

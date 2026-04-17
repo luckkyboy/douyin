@@ -116,6 +116,7 @@ dy live record ROOM_ID                   # Record with ffmpeg
 
 ```bash
 dy transcribe /path/to/video.mp4         # Transcribe one local video
+dy transcribe /path/to/audio.mp3         # Transcribe one local audio file directly
 dy transcribe /path/to/dir               # Batch-transcribe a directory of local videos
 dy transcribe /path/to/dir --force       # Rebuild existing transcript JSON files
 dy transcribe /path/to/dir --delete-video # Delete mp4 after successful transcription, keep mp3 + json
@@ -123,8 +124,9 @@ dy transcribe /path/to/dir --delete-video # Delete mp4 after successful transcri
 
 Transcription behavior:
 
-- `dy transcribe <file_or_dir>` only works on already-downloaded local videos
+- `dy transcribe <file_or_dir>` works on already-downloaded local videos and supported local audio files
 - audio is extracted with `ffmpeg` and submitted to a local Whisper ASR webservice
+- direct audio inputs such as `.mp3` skip the ffmpeg extraction step and are submitted as-is
 - each video writes a same-name transcript JSON, for example `087_xxx.mp4 -> 087_xxx.json`
 - directory mode writes `transcribe_progress.json` for resume support
 - existing same-name `.json` files are treated as completed work and skipped by default
@@ -174,6 +176,7 @@ dy config set api.proxy http://...       # Set proxy
 dy config set asr.whisper_webservice.base_url http://127.0.0.1:9000
 dy config set asr.whisper_webservice.language zh
 dy config set asr.whisper_webservice.vad_filter true
+dy config set asr.replace_map '{"龙非":"龙飞"}'
 ```
 
 ### Aliases

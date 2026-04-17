@@ -1,6 +1,7 @@
 """Local Whisper ASR webservice client."""
 from __future__ import annotations
 
+import json
 import os
 from copy import deepcopy
 
@@ -37,7 +38,7 @@ class WhisperWebserviceClient:
         self.encode = encode
         self.timeout = timeout
         self.initial_prompt = initial_prompt
-        self.replace_map = dict(replace_map or {})
+        self.replace_map = self._normalize_replace_map(replace_map)
 
     @classmethod
     def from_config(cls) -> "WhisperWebserviceClient":
@@ -128,3 +129,16 @@ class WhisperWebserviceClient:
                 corrected[key] = self._apply_replace_map_to_value(item)
             return corrected
         return value
+
+    @staticmethod
+    def _normalize_replace_map(replace_map) -> dict[str, str]:
+        if not replace_map:
+            return {}
+        if isinstance(replace_map, str):
+            try:
+                replace_map = json.loads(replace_map)
+            except json.JSONDecodeError as e:
+                raise WhisperWebserviceError("Invalid asr.replace_map JSON") from e
+        if not isinstance(replace_map, dict):
+            raise WhisperWebserviceError("asr.replace_map must be a JSON object")
+        return {str(source): str(target) for source, target in replace_map.items()}

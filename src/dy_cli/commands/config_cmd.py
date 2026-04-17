@@ -3,6 +3,8 @@ dy config — 配置管理命令。
 """
 from __future__ import annotations
 
+import json
+
 import click
 
 from dy_cli.utils import config
@@ -43,6 +45,11 @@ def set_config(key, value):
         value = value.lower() == "true"
     elif value.isdigit():
         value = int(value)
+    elif value.startswith(("{", "[")):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            pass
 
     config.set_value(key, value)
     success(f"已设置 {key} = {value}")

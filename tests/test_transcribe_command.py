@@ -46,6 +46,25 @@ def test_transcribe_single_file_creates_json(monkeypatch, tmp_path):
     assert not (tmp_path / "001_alpha.transcribe.mp3").exists()
 
 
+def test_transcribe_single_audio_file_skips_ffmpeg(monkeypatch, tmp_path):
+    audio_path = tmp_path / "001_alpha.transcribe.mp3"
+    audio_path.write_bytes(b"audio")
+    fake_asr = _FakeWhisperClient()
+
+    def fake_extract(video_path_value, audio_path_value):
+        raise AssertionError("extract_audio should not be called for direct audio transcription")
+
+    monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
+    monkeypatch.setattr("dy_cli.commands.transcribe.WhisperWebserviceClient.from_config", lambda: fake_asr)
+
+    result = CliRunner().invoke(cli, ["transcribe", str(audio_path)])
+
+    output_path = tmp_path / "001_alpha.transcribe.json"
+    assert result.exit_code == 0
+    assert output_path.exists()
+    assert fake_asr.calls == [str(audio_path)]
+
+
 def test_transcribe_uses_ffmpeg_friendly_temp_audio_suffix(monkeypatch, tmp_path):
     video_path = tmp_path / "001_alpha.mp4"
     video_path.write_bytes(b"video")

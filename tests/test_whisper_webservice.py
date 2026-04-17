@@ -69,3 +69,28 @@ def test_transcribe_raises_on_http_error(monkeypatch, tmp_path):
 
     with pytest.raises(WhisperWebserviceError):
         client.transcribe(str(audio_path))
+
+
+def test_from_config_parses_string_replace_map(monkeypatch):
+    monkeypatch.setattr(
+        "dy_cli.services.whisper_webservice.config.load_config",
+        lambda: {
+            "asr": {
+                "replace_map": '{"龙非":"龙飞"}',
+                "whisper_webservice": {
+                    "base_url": "http://127.0.0.1:9000",
+                    "language": "zh",
+                    "task": "transcribe",
+                    "vad_filter": True,
+                    "word_timestamps": False,
+                    "encode": True,
+                    "timeout": 600,
+                    "initial_prompt": "",
+                },
+            }
+        },
+    )
+
+    client = WhisperWebserviceClient.from_config()
+
+    assert client.replace_map == {"龙非": "龙飞"}
