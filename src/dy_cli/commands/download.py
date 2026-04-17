@@ -384,10 +384,16 @@ def _media_exists(video_path: str, user_dir: str, index: int, safe: str) -> bool
     if os.path.exists(video_path):
         return True
     normalized_video_name = _strip_numeric_prefix(os.path.basename(video_path))
+    normalized_mp3_name = f"{safe}.transcribe.mp3"
+    normalized_json_name = f"{safe}.json"
     image_prefix = f"{safe}_"
     for name in os.listdir(user_dir):
         normalized_name = _strip_numeric_prefix(name)
         if normalized_name == normalized_video_name:
+            return True
+        if normalized_name == normalized_mp3_name:
+            return True
+        if normalized_name == normalized_json_name:
             return True
         if normalized_name.startswith(image_prefix):
             return True

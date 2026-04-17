@@ -99,7 +99,8 @@ User archive download behavior:
 - if that manifest exists and is marked as complete for the same `sec_user_id`, later runs reuse it instead of refetching from Douyin
 - reruns resume from `failed` / `pending` items in `progress.json` instead of starting from the beginning
 - existing video/image files in the target directory are skipped automatically
-- the downloader sleeps 10 seconds between posts to reduce anti-bot risk
+- existing transcript artifacts also prevent re-downloading the original video: same-name `.transcribe.mp3` or `.json` count as already processed media
+- the downloader sleeps 10 seconds between posts only after it actually fetched/downloaded a remote item; direct local-file skips do not wait
 
 ### Trending & Live
 
@@ -117,6 +118,7 @@ dy live record ROOM_ID                   # Record with ffmpeg
 dy transcribe /path/to/video.mp4         # Transcribe one local video
 dy transcribe /path/to/dir               # Batch-transcribe a directory of local videos
 dy transcribe /path/to/dir --force       # Rebuild existing transcript JSON files
+dy transcribe /path/to/dir --delete-video # Delete mp4 after successful transcription, keep mp3 + json
 ```
 
 Transcription behavior:
@@ -127,6 +129,8 @@ Transcription behavior:
 - directory mode writes `transcribe_progress.json` for resume support
 - existing same-name `.json` files are treated as completed work and skipped by default
 - `.part` files are used for intermediate audio and JSON output so interrupted runs are not treated as complete
+- by default the original `.mp4`, extracted `.transcribe.mp3`, and transcript `.json` are all kept
+- when `--delete-video` is provided, the original `.mp4` is removed after a successful transcription, while the `.transcribe.mp3` and `.json` are kept
 
 ### Publish
 

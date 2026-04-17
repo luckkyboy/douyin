@@ -40,6 +40,27 @@ def test_transcribe_single_file_creates_json(monkeypatch, tmp_path):
     assert payload["source_file"] == "001_alpha.mp4"
     assert payload["text"] == "转写文本"
     assert fake_asr.calls
+    assert not (tmp_path / "001_alpha.transcribe.mp3").exists()
+
+
+def test_transcribe_single_file_delete_video_keeps_mp3_and_json(monkeypatch, tmp_path):
+    video_path = tmp_path / "001_alpha.mp4"
+    video_path.write_bytes(b"video")
+    fake_asr = _FakeAsrClient()
+
+    def fake_extract(video_path_value, audio_path_value):
+        with open(audio_path_value, "wb") as f:
+            f.write(b"audio")
+
+    monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
+    monkeypatch.setattr("dy_cli.commands.transcribe.TencentASRFlashClient.from_config", lambda: fake_asr)
+
+    result = CliRunner().invoke(cli, ["transcribe", str(video_path), "--delete-video"])
+
+    assert result.exit_code == 0
+    assert not video_path.exists()
+    assert (tmp_path / "001_alpha.transcribe.mp3").exists()
+    assert (tmp_path / "001_alpha.json").exists()
 
 
 def test_transcribe_dir_skips_existing_json(monkeypatch, tmp_path):

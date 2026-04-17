@@ -485,6 +485,76 @@ def test_batch_user_download_matches_existing_files_ignoring_numeric_prefix(monk
     assert progress["items"]["1001"]["status"] == "done"
 
 
+def test_batch_user_download_skips_when_matching_mp3_exists(monkeypatch, tmp_path):
+    fake_api = _FakeBatchAPIClient({})
+    user_dir = tmp_path / "tester"
+    user_dir.mkdir()
+    (user_dir / "tester_posts.json").write_text(
+        json.dumps(
+            {
+                "sec_user_id": "SEC_UID",
+                "nickname": "tester",
+                "complete": True,
+                "total": 1,
+                "posts": [{"aweme_id": "1001", "desc": "first"}],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (user_dir / "087_first.transcribe.mp3").write_bytes(b"audio")
+
+    monkeypatch.setattr(
+        "dy_cli.commands.download.config.load_config",
+        lambda: {"default": {"download_dir": str(tmp_path), "account": "browser"}},
+    )
+    monkeypatch.setattr(
+        "dy_cli.commands.download.DouyinAPIClient.from_config",
+        lambda account: fake_api,
+    )
+
+    result = CliRunner().invoke(download, ["SEC_UID", "--user"])
+
+    assert result.exit_code == 0
+    assert fake_api.download_url_calls == []
+    assert fake_api.downloaded == []
+
+
+def test_batch_user_download_skips_when_matching_transcript_json_exists(monkeypatch, tmp_path):
+    fake_api = _FakeBatchAPIClient({})
+    user_dir = tmp_path / "tester"
+    user_dir.mkdir()
+    (user_dir / "tester_posts.json").write_text(
+        json.dumps(
+            {
+                "sec_user_id": "SEC_UID",
+                "nickname": "tester",
+                "complete": True,
+                "total": 1,
+                "posts": [{"aweme_id": "1001", "desc": "first"}],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (user_dir / "087_first.json").write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "dy_cli.commands.download.config.load_config",
+        lambda: {"default": {"download_dir": str(tmp_path), "account": "browser"}},
+    )
+    monkeypatch.setattr(
+        "dy_cli.commands.download.DouyinAPIClient.from_config",
+        lambda account: fake_api,
+    )
+
+    result = CliRunner().invoke(download, ["SEC_UID", "--user"])
+
+    assert result.exit_code == 0
+    assert fake_api.download_url_calls == []
+    assert fake_api.downloaded == []
+
+
 def test_batch_user_download_does_not_sleep_between_consecutive_local_skips(monkeypatch, tmp_path):
     fake_api = _FakeBatchAPIClient({})
     user_dir = tmp_path / "tester"

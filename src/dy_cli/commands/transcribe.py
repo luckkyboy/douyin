@@ -17,22 +17,31 @@ from dy_cli.utils.output import error, info, success, warning
 @click.argument("path", type=click.Path(exists=True, path_type=str))
 @click.option("--force", is_flag=True, help="已有同名 JSON 也重新转写")
 @click.option("--audio-keep", is_flag=True, help="保留中间音频文件")
+@click.option("--delete-video", is_flag=True, help="转写成功后删除原视频，保留 mp3 和 json")
 @click.option("--engine-type", default=None, help="覆盖默认腾讯 ASR 引擎")
 @click.option("--limit", type=int, default=0, help="目录模式下仅处理前 N 个视频")
-def transcribe(path: str, force: bool, audio_keep: bool, engine_type: str | None, limit: int):
+def transcribe(path: str, force: bool, audio_keep: bool, delete_video: bool, engine_type: str | None, limit: int):
     """对本地已下载视频进行语音转写。"""
     client = TencentASRFlashClient.from_config()
     if engine_type:
         client.engine_type = engine_type
 
     if os.path.isfile(path):
-        _transcribe_file(path, client, force=force, audio_keep=audio_keep)
+        _transcribe_file(path, client, force=force, audio_keep=audio_keep, delete_video=delete_video)
         return
 
-    _transcribe_dir(path, client, force=force, audio_keep=audio_keep, limit=limit)
+    _transcribe_dir(path, client, force=force, audio_keep=audio_keep, delete_video=delete_video, limit=limit)
 
 
-def _transcribe_dir(path: str, client: TencentASRFlashClient, *, force: bool, audio_keep: bool, limit: int) -> None:
+def _transcribe_dir(
+    path: str,
+    client: TencentASRFlashClient,
+    *,
+    force: bool,
+    audio_keep: bool,
+    delete_video: bool,
+    limit: int,
+) -> None:
     files = sorted(name for name in os.listdir(path) if name.lower().endswith(".mp4"))
     if limit > 0:
         files = files[:limit]
@@ -53,7 +62,7 @@ def _transcribe_dir(path: str, client: TencentASRFlashClient, *, force: bool, au
             continue
 
         try:
-            _transcribe_file(file_path, client, force=force, audio_keep=audio_keep)
+            _transcribe_file(file_path, client, force=force, audio_keep=audio_keep, delete_video=delete_video)
             mark_progress(progress, progress_path, filename, index, "done", output_json=os.path.basename(output_json))
         except (MediaError, TencentASRError) as e:
             warning(f"[{index}/{len(files)}] 转写失败: {filename} ({e})")
@@ -62,7 +71,14 @@ def _transcribe_dir(path: str, client: TencentASRFlashClient, *, force: bool, au
     success(f"转写完成: {path}")
 
 
-def _transcribe_file(path: str, client: TencentASRFlashClient, *, force: bool, audio_keep: bool) -> None:
+def _transcribe_file(
+    path: str,
+    client: TencentASRFlashClient,
+    *,
+    force: bool,
+    audio_keep: bool,
+    delete_video: bool,
+) -> None:
     output_json = os.path.splitext(path)[0] + ".json"
     if os.path.exists(output_json) and not force:
         info(f"已存在转写结果，跳过: {os.path.basename(path)}")
@@ -87,8 +103,11 @@ def _transcribe_file(path: str, client: TencentASRFlashClient, *, force: bool, a
         }
         write_transcript_json(output_json, payload)
         success(f"转写成功: {os.path.basename(output_json)}")
+        if delete_video and os.path.exists(path):
+            os.remove(path)
     finally:
-        if not audio_keep and os.path.exists(audio_path):
+        keep_audio = audio_keep or delete_video
+        if not keep_audio and os.path.exists(audio_path):
             os.remove(audio_path)
 
 
