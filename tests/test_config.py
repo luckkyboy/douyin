@@ -21,11 +21,11 @@ class TestLoadSave:
         cfg = config.load_config()
         assert cfg["default"]["engine"] == "auto"
         assert cfg["api"]["timeout"] == 30
-        assert cfg["asr"]["provider"] == "tencent"
-        assert cfg["asr"]["tencent"]["app_id"] == ""
-        assert cfg["asr"]["tencent"]["secret_id"] == ""
-        assert cfg["asr"]["tencent"]["secret_key"] == ""
-        assert cfg["asr"]["tencent"]["engine_type"] == "16k_zh"
+        assert cfg["asr"]["whisper_webservice"]["base_url"] == "http://127.0.0.1:9000"
+        assert cfg["asr"]["whisper_webservice"]["language"] == "zh"
+        assert cfg["asr"]["whisper_webservice"]["vad_filter"] is True
+        assert cfg["asr"]["whisper_webservice"]["word_timestamps"] is False
+        assert cfg["asr"]["replace_map"] == {}
 
     def test_save_and_load(self):
         cfg = config.load_config()

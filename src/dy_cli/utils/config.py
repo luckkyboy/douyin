@@ -29,12 +29,16 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "download_dir": os.path.expanduser("~/Downloads/douyin"),
     },
     "asr": {
-        "provider": "tencent",
-        "tencent": {
-            "app_id": "",
-            "secret_id": "",
-            "secret_key": "",
-            "engine_type": "16k_zh",
+        "replace_map": {},
+        "whisper_webservice": {
+            "base_url": "http://127.0.0.1:9000",
+            "language": "zh",
+            "task": "transcribe",
+            "vad_filter": True,
+            "word_timestamps": False,
+            "encode": True,
+            "timeout": 600,
+            "initial_prompt": "",
         },
     },
 }

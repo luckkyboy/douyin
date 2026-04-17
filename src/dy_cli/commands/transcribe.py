@@ -8,9 +8,9 @@ from datetime import datetime, timezone
 import click
 
 from dy_cli.services.media import MediaError, extract_audio
-from dy_cli.services.tencent_asr import TencentASRError, TencentASRFlashClient
+from dy_cli.services.whisper_webservice import WhisperWebserviceClient, WhisperWebserviceError
 from dy_cli.services.transcribe_state import init_progress, mark_progress, save_progress, write_transcript_json
-from dy_cli.utils.output import error, info, success, warning
+from dy_cli.utils.output import info, success, warning
 
 
 @click.command("transcribe", help="转写本地视频为文本 JSON")
@@ -18,13 +18,10 @@ from dy_cli.utils.output import error, info, success, warning
 @click.option("--force", is_flag=True, help="已有同名 JSON 也重新转写")
 @click.option("--audio-keep", is_flag=True, help="保留中间音频文件")
 @click.option("--delete-video", is_flag=True, help="转写成功后删除原视频，保留 mp3 和 json")
-@click.option("--engine-type", default=None, help="覆盖默认腾讯 ASR 引擎")
 @click.option("--limit", type=int, default=0, help="目录模式下仅处理前 N 个视频")
-def transcribe(path: str, force: bool, audio_keep: bool, delete_video: bool, engine_type: str | None, limit: int):
+def transcribe(path: str, force: bool, audio_keep: bool, delete_video: bool, limit: int):
     """对本地已下载视频进行语音转写。"""
-    client = TencentASRFlashClient.from_config()
-    if engine_type:
-        client.engine_type = engine_type
+    client = WhisperWebserviceClient.from_config()
 
     if os.path.isfile(path):
         _transcribe_file(path, client, force=force, audio_keep=audio_keep, delete_video=delete_video)
@@ -35,7 +32,7 @@ def transcribe(path: str, force: bool, audio_keep: bool, delete_video: bool, eng
 
 def _transcribe_dir(
     path: str,
-    client: TencentASRFlashClient,
+    client: WhisperWebserviceClient,
     *,
     force: bool,
     audio_keep: bool,
@@ -64,7 +61,7 @@ def _transcribe_dir(
         try:
             _transcribe_file(file_path, client, force=force, audio_keep=audio_keep, delete_video=delete_video)
             mark_progress(progress, progress_path, filename, index, "done", output_json=os.path.basename(output_json))
-        except (MediaError, TencentASRError) as e:
+        except (MediaError, WhisperWebserviceError) as e:
             warning(f"[{index}/{len(files)}] 转写失败: {filename} ({e})")
             mark_progress(progress, progress_path, filename, index, "failed", output_json=os.path.basename(output_json), error=str(e))
 
@@ -73,7 +70,7 @@ def _transcribe_dir(
 
 def _transcribe_file(
     path: str,
-    client: TencentASRFlashClient,
+    client: WhisperWebserviceClient,
     *,
     force: bool,
     audio_keep: bool,
@@ -94,8 +91,9 @@ def _transcribe_file(
         payload = {
             "version": 1,
             "source_file": os.path.basename(path),
-            "engine": "tencent_asr_flash",
-            "engine_type": client.engine_type,
+            "engine": result.get("engine", "transcribe"),
+            "language": result.get("language", getattr(client, "language", "")),
+            "text_raw": result.get("text_raw", result["text"]),
             "text": result["text"],
             "segments": result["segments"],
             "created_at": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),

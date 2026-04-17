@@ -206,10 +206,9 @@ dy config set api.proxy http://...       # 设置代理
 dy config set api.timeout 60             # 请求超时
 dy config set playwright.headless true   # 无头模式
 dy config set default.download_dir ~/Vid # 下载目录
-dy config set asr.tencent.app_id xxx     # 腾讯 ASR AppID
-dy config set asr.tencent.secret_id xxx  # 腾讯 ASR SecretID
-dy config set asr.tencent.secret_key xxx # 腾讯 ASR SecretKey
-dy config set asr.tencent.engine_type 16k_zh # 腾讯 ASR 引擎
+dy config set asr.whisper_webservice.base_url http://127.0.0.1:9000
+dy config set asr.whisper_webservice.language zh
+dy config set asr.whisper_webservice.vad_filter true
 dy config get api.proxy                  # 获取单项
 dy config reset                          # 重置默认
 ```

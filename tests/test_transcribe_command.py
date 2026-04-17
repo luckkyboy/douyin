@@ -5,31 +5,33 @@ from click.testing import CliRunner
 from dy_cli.main import cli
 
 
-class _FakeAsrClient:
+class _FakeWhisperClient:
     def __init__(self):
         self.calls = []
-        self.engine_type = "16k_zh"
+        self.language = "zh"
 
     def transcribe(self, audio_path):
         self.calls.append(audio_path)
         return {
             "text": "转写文本",
+            "text_raw": "转写文本",
             "segments": [{"text": "转写文本", "start_time": 0, "end_time": 1000, "speaker_id": 0, "words": []}],
-            "raw": {"code": 0},
+            "raw": {"text": "转写文本"},
+            "language": "zh",
         }
 
 
 def test_transcribe_single_file_creates_json(monkeypatch, tmp_path):
     video_path = tmp_path / "001_alpha.mp4"
     video_path.write_bytes(b"video")
-    fake_asr = _FakeAsrClient()
+    fake_asr = _FakeWhisperClient()
 
     def fake_extract(video_path_value, audio_path_value):
         with open(audio_path_value, "wb") as f:
             f.write(b"audio")
 
     monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
-    monkeypatch.setattr("dy_cli.commands.transcribe.TencentASRFlashClient.from_config", lambda: fake_asr)
+    monkeypatch.setattr("dy_cli.commands.transcribe.WhisperWebserviceClient.from_config", lambda: fake_asr)
 
     result = CliRunner().invoke(cli, ["transcribe", str(video_path)])
 
@@ -39,6 +41,7 @@ def test_transcribe_single_file_creates_json(monkeypatch, tmp_path):
     payload = json.loads(output_path.read_text(encoding="utf-8"))
     assert payload["source_file"] == "001_alpha.mp4"
     assert payload["text"] == "转写文本"
+    assert payload["text_raw"] == "转写文本"
     assert fake_asr.calls
     assert not (tmp_path / "001_alpha.transcribe.mp3").exists()
 
@@ -46,7 +49,7 @@ def test_transcribe_single_file_creates_json(monkeypatch, tmp_path):
 def test_transcribe_uses_ffmpeg_friendly_temp_audio_suffix(monkeypatch, tmp_path):
     video_path = tmp_path / "001_alpha.mp4"
     video_path.write_bytes(b"video")
-    fake_asr = _FakeAsrClient()
+    fake_asr = _FakeWhisperClient()
     captured = {}
 
     def fake_extract(video_path_value, audio_path_value):
@@ -55,7 +58,7 @@ def test_transcribe_uses_ffmpeg_friendly_temp_audio_suffix(monkeypatch, tmp_path
             f.write(b"audio")
 
     monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
-    monkeypatch.setattr("dy_cli.commands.transcribe.TencentASRFlashClient.from_config", lambda: fake_asr)
+    monkeypatch.setattr("dy_cli.commands.transcribe.WhisperWebserviceClient.from_config", lambda: fake_asr)
 
     result = CliRunner().invoke(cli, ["transcribe", str(video_path)])
 
@@ -66,14 +69,14 @@ def test_transcribe_uses_ffmpeg_friendly_temp_audio_suffix(monkeypatch, tmp_path
 def test_transcribe_single_file_delete_video_keeps_mp3_and_json(monkeypatch, tmp_path):
     video_path = tmp_path / "001_alpha.mp4"
     video_path.write_bytes(b"video")
-    fake_asr = _FakeAsrClient()
+    fake_asr = _FakeWhisperClient()
 
     def fake_extract(video_path_value, audio_path_value):
         with open(audio_path_value, "wb") as f:
             f.write(b"audio")
 
     monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
-    monkeypatch.setattr("dy_cli.commands.transcribe.TencentASRFlashClient.from_config", lambda: fake_asr)
+    monkeypatch.setattr("dy_cli.commands.transcribe.WhisperWebserviceClient.from_config", lambda: fake_asr)
 
     result = CliRunner().invoke(cli, ["transcribe", str(video_path), "--delete-video"])
 
@@ -89,14 +92,14 @@ def test_transcribe_dir_skips_existing_json(monkeypatch, tmp_path):
     first.write_bytes(b"video")
     second.write_bytes(b"video")
     (tmp_path / "001_alpha.json").write_text("{}", encoding="utf-8")
-    fake_asr = _FakeAsrClient()
+    fake_asr = _FakeWhisperClient()
 
     def fake_extract(video_path_value, audio_path_value):
         with open(audio_path_value, "wb") as f:
             f.write(b"audio")
 
     monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
-    monkeypatch.setattr("dy_cli.commands.transcribe.TencentASRFlashClient.from_config", lambda: fake_asr)
+    monkeypatch.setattr("dy_cli.commands.transcribe.WhisperWebserviceClient.from_config", lambda: fake_asr)
 
     result = CliRunner().invoke(cli, ["transcribe", str(tmp_path)])
 
@@ -130,14 +133,14 @@ def test_transcribe_dir_writes_progress_and_resumes(monkeypatch, tmp_path):
         ),
         encoding="utf-8",
     )
-    fake_asr = _FakeAsrClient()
+    fake_asr = _FakeWhisperClient()
 
     def fake_extract(video_path_value, audio_path_value):
         with open(audio_path_value, "wb") as f:
             f.write(b"audio")
 
     monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
-    monkeypatch.setattr("dy_cli.commands.transcribe.TencentASRFlashClient.from_config", lambda: fake_asr)
+    monkeypatch.setattr("dy_cli.commands.transcribe.WhisperWebserviceClient.from_config", lambda: fake_asr)
 
     result = CliRunner().invoke(cli, ["transcribe", str(tmp_path)])
 
