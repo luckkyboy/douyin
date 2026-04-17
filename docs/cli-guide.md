@@ -92,7 +92,9 @@ dy dl SEC_USER_ID --user --limit 20        # 只下载前 20 个作品
 
 - 首次执行 `dy dl SEC_USER_ID --user` 时，会自动分页拉取该账号全部作品
 - 在下载目录下生成 `<nickname>/<nickname>_posts.json`，其中包含 `sec_user_id`、`complete`、`total` 和完整 `posts` 列表
+- 同时生成 `<nickname>/<nickname>_progress.json`，按 `aweme_id` 记录 `done/failed/pending` 下载状态
 - 如果后续再次执行同一个账号的全量下载，并且本地 `posts.json` 已存在且标记为完整，会直接复用该缓存，不再重新请求作品列表
+- 再次执行时，会优先读取 `progress.json`，从未完成或失败的作品继续下载，而不是从头开始
 - 下载阶段如果目标视频或图片文件已存在，会自动跳过
 - 每个作品之间固定等待 10 秒，降低触发风控的概率
 

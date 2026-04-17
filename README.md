@@ -94,7 +94,9 @@ User archive download behavior:
 
 - `dy dl SEC_USER_ID --user` automatically paginates through all posts for that account
 - before downloading media, it exports a full post manifest to `<download_dir>/<nickname>/<nickname>_posts.json`
+- it also writes `<download_dir>/<nickname>/<nickname>_progress.json` to persist per-`aweme_id` download state
 - if that manifest exists and is marked as complete for the same `sec_user_id`, later runs reuse it instead of refetching from Douyin
+- reruns resume from `failed` / `pending` items in `progress.json` instead of starting from the beginning
 - existing video/image files in the target directory are skipped automatically
 - the downloader sleeps 10 seconds between posts to reduce anti-bot risk
 

@@ -276,6 +276,116 @@ def test_batch_user_download_skips_existing_media_files(monkeypatch, tmp_path):
     assert sleep_calls == [10]
 
 
+def test_batch_user_download_writes_progress_file(monkeypatch, tmp_path):
+    fake_api = _FakeBatchAPIClient(
+        {
+            0: {
+                "aweme_list": [
+                    {"aweme_id": "1001", "desc": "first"},
+                    {"aweme_id": "1002", "desc": "second"},
+                ],
+                "has_more": 0,
+                "max_cursor": 0,
+            },
+        }
+    )
+    sleep_calls = []
+
+    monkeypatch.setattr(
+        "dy_cli.commands.download.config.load_config",
+        lambda: {"default": {"download_dir": str(tmp_path), "account": "browser"}},
+    )
+    monkeypatch.setattr(
+        "dy_cli.commands.download.DouyinAPIClient.from_config",
+        lambda account: fake_api,
+    )
+    monkeypatch.setattr("time.sleep", lambda seconds: sleep_calls.append(seconds))
+
+    result = CliRunner().invoke(download, ["SEC_UID", "--user"])
+    progress_path = tmp_path / "tester" / "tester_progress.json"
+
+    assert result.exit_code == 0
+    assert progress_path.exists()
+    progress = json.loads(progress_path.read_text(encoding="utf-8"))
+    assert progress["sec_user_id"] == "SEC_UID"
+    assert progress["completed"] == 2
+    assert progress["last_index"] == 2
+    assert progress["last_aweme_id"] == "1002"
+    assert progress["items"]["1001"]["status"] == "done"
+    assert progress["items"]["1002"]["status"] == "done"
+    assert sleep_calls == [10]
+
+
+def test_batch_user_download_resumes_from_failed_item(monkeypatch, tmp_path):
+    fake_api = _FakeBatchAPIClient({})
+    user_dir = tmp_path / "tester"
+    user_dir.mkdir()
+    (user_dir / "001_first.mp4").write_bytes(b"existing")
+    (user_dir / "tester_posts.json").write_text(
+        json.dumps(
+            {
+                "sec_user_id": "SEC_UID",
+                "nickname": "tester",
+                "complete": True,
+                "total": 3,
+                "posts": [
+                    {"aweme_id": "1001", "desc": "first"},
+                    {"aweme_id": "1002", "desc": "second"},
+                    {"aweme_id": "1003", "desc": "third"},
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (user_dir / "tester_progress.json").write_text(
+        json.dumps(
+            {
+                "sec_user_id": "SEC_UID",
+                "manifest_file": "tester_posts.json",
+                "total": 3,
+                "completed": 1,
+                "last_index": 1,
+                "last_aweme_id": "1001",
+                "items": {
+                    "1001": {"status": "done", "file": "001_first.mp4"},
+                    "1002": {"status": "failed", "error": "timeout"},
+                    "1003": {"status": "pending"},
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    sleep_calls = []
+
+    monkeypatch.setattr(
+        "dy_cli.commands.download.config.load_config",
+        lambda: {"default": {"download_dir": str(tmp_path), "account": "browser"}},
+    )
+    monkeypatch.setattr(
+        "dy_cli.commands.download.DouyinAPIClient.from_config",
+        lambda account: fake_api,
+    )
+    monkeypatch.setattr("time.sleep", lambda seconds: sleep_calls.append(seconds))
+
+    result = CliRunner().invoke(download, ["SEC_UID", "--user"])
+    progress = json.loads((user_dir / "tester_progress.json").read_text(encoding="utf-8"))
+
+    assert result.exit_code == 0
+    assert [url for url, _ in fake_api.downloaded] == [
+        "https://api.example.com/1002.mp4",
+        "https://api.example.com/1003.mp4",
+    ]
+    assert progress["completed"] == 3
+    assert progress["last_index"] == 3
+    assert progress["last_aweme_id"] == "1003"
+    assert progress["items"]["1001"]["status"] == "done"
+    assert progress["items"]["1002"]["status"] == "done"
+    assert progress["items"]["1003"]["status"] == "done"
+    assert sleep_calls == [10, 10]
+
+
 def test_download_command_source_parses_with_python_310_grammar():
     source = Path("src/dy_cli/commands/download.py").read_text(encoding="utf-8")
 

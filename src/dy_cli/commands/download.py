@@ -7,6 +7,7 @@ import os
 import re
 import time
 import json
+from datetime import datetime, timezone
 
 import click
 from rich.progress import BarColumn, DownloadColumn, Progress, SpinnerColumn, TextColumn, TransferSpeedColumn
@@ -163,6 +164,7 @@ def _batch_download_user(
     os.makedirs(user_dir, exist_ok=True)
 
     export_path = os.path.join(user_dir, f"{safe_nickname}_posts.json")
+    progress_path = os.path.join(user_dir, f"{safe_nickname}_progress.json")
     aweme_list = _load_cached_posts(export_path, sec_user_id)
 
     if aweme_list is None:
@@ -180,23 +182,35 @@ def _batch_download_user(
     downloaded = 0
 
     target_posts = aweme_list if limit <= 0 else aweme_list[:limit]
+    progress = _load_progress(progress_path, sec_user_id, export_path, len(target_posts), target_posts)
 
     for i, aweme in enumerate(target_posts, 1):
         aweme_id = aweme.get("aweme_id", "")
         desc = aweme.get("desc", "untitled")
         safe = re.sub(r'[\\/:*?"<>|\n\r]', '_', desc)[:40].strip('_') or aweme_id
+        video_path = os.path.join(user_dir, f"{i:03d}_{safe}.mp4")
+        item_progress = progress["items"].setdefault(aweme_id, {"status": "pending"})
+
+        if item_progress.get("status") == "done" and _media_exists(video_path, user_dir, i, safe):
+            info(f"[{i}/{len(target_posts)}] 已完成，跳过: {safe[:30]}")
+            _mark_progress(progress, progress_path, aweme_id, i, "done", file=os.path.basename(video_path))
+            if i < len(target_posts):
+                info("等待 10 秒后继续，降低风控风险...")
+                time.sleep(10)
+            continue
 
         try:
             dl_info = client.get_download_url(aweme_id)
             video_url = dl_info.get("video_url")
             if video_url:
-                path = os.path.join(user_dir, f"{i:03d}_{safe}.mp4")
-                if os.path.exists(path):
+                if os.path.exists(video_path):
                     info(f"[{i}/{len(target_posts)}] 已存在，跳过: {safe[:30]}")
+                    item_progress["file"] = os.path.basename(video_path)
                 else:
                     info(f"[{i}/{len(target_posts)}] {safe[:30]}...")
-                    _download_with_progress(client, video_url, path)
+                    _download_with_progress(client, video_url, video_path)
                     downloaded += 1
+                    item_progress["file"] = os.path.basename(video_path)
 
             # Images
             images = dl_info.get("images")
@@ -208,8 +222,10 @@ def _batch_download_user(
                         continue
                     client.download_file(img_url, path)
                 downloaded += 1
+            _mark_progress(progress, progress_path, aweme_id, i, "done", file=item_progress.get("file"))
         except Exception as e:
             warning(f"[{i}] 下载失败: {e}")
+            _mark_progress(progress, progress_path, aweme_id, i, "failed", error=str(e), file=item_progress.get("file"))
         finally:
             if i < len(target_posts):
                 info("等待 10 秒后继续，降低风控风险...")
@@ -291,6 +307,85 @@ def _export_posts_manifest(export_path: str, sec_user_id: str, nickname: str, po
     with open(export_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
     success(f"已导出 {len(posts)} 条到 {export_path}")
+
+
+def _load_progress(
+    progress_path: str,
+    sec_user_id: str,
+    export_path: str,
+    total: int,
+    posts: list[dict],
+) -> dict:
+    """加载或初始化下载进度。"""
+    items = {post.get("aweme_id", ""): {"status": "pending"} for post in posts if post.get("aweme_id")}
+    payload = {
+        "sec_user_id": sec_user_id,
+        "manifest_file": os.path.basename(export_path),
+        "total": total,
+        "completed": 0,
+        "last_index": 0,
+        "last_aweme_id": "",
+        "updated_at": "",
+        "items": items,
+    }
+
+    if os.path.exists(progress_path):
+        try:
+            with open(progress_path, encoding="utf-8") as f:
+                existing = json.load(f)
+            if isinstance(existing, dict) and existing.get("sec_user_id") == sec_user_id:
+                payload.update({k: v for k, v in existing.items() if k != "items"})
+                existing_items = existing.get("items", {})
+                if isinstance(existing_items, dict):
+                    for aweme_id, state in existing_items.items():
+                        if aweme_id in items and isinstance(state, dict):
+                            items[aweme_id].update(state)
+        except (OSError, json.JSONDecodeError):
+            warning("进度文件读取失败，重新初始化")
+
+    payload["items"] = items
+    payload["total"] = total
+    _save_progress(progress_path, payload)
+    return payload
+
+
+def _save_progress(progress_path: str, payload: dict) -> None:
+    os.makedirs(os.path.dirname(progress_path) or ".", exist_ok=True)
+    with open(progress_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+
+def _mark_progress(
+    progress: dict,
+    progress_path: str,
+    aweme_id: str,
+    index: int,
+    status: str,
+    *,
+    file: str | None = None,
+    error: str | None = None,
+) -> None:
+    item = progress["items"].setdefault(aweme_id, {})
+    item["status"] = status
+    if file:
+        item["file"] = file
+    if error:
+        item["error"] = error
+    else:
+        item.pop("error", None)
+
+    progress["completed"] = sum(1 for state in progress["items"].values() if state.get("status") == "done")
+    progress["last_index"] = index
+    progress["last_aweme_id"] = aweme_id
+    progress["updated_at"] = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    _save_progress(progress_path, progress)
+
+
+def _media_exists(video_path: str, user_dir: str, index: int, safe: str) -> bool:
+    if os.path.exists(video_path):
+        return True
+    image_prefix = f"{index:03d}_{safe}_"
+    return any(name.startswith(image_prefix) for name in os.listdir(user_dir))
 
 
 def _download_with_progress(client: DouyinAPIClient, url: str, output_path: str):
