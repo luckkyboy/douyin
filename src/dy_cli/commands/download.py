@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 
 import click
 from rich.progress import BarColumn, DownloadColumn, Progress, SpinnerColumn, TextColumn, TransferSpeedColumn
@@ -12,6 +13,7 @@ from rich.progress import BarColumn, DownloadColumn, Progress, SpinnerColumn, Te
 from dy_cli.engines.api_client import DouyinAPIClient, DouyinAPIError
 from dy_cli.engines.playwright_client import PlaywrightClient, PlaywrightError
 from dy_cli.utils import config
+from dy_cli.utils.export import export_data
 from dy_cli.utils.index_cache import resolve_id
 from dy_cli.utils.output import console, error, info, success, warning
 
@@ -20,7 +22,7 @@ from dy_cli.utils.output import console, error, info, success, warning
 @click.argument("url_or_id")
 @click.option("--output-dir", "-o", default=None, help="保存目录 (默认 ~/Downloads/douyin)")
 @click.option("--music", is_flag=True, help="同时下载背景音乐")
-@click.option("--limit", type=int, default=0, help="批量下载: 用户作品数量 (需配合 --user)")
+@click.option("--limit", type=int, default=0, help="批量下载: 限制作品数量，默认全部 (需配合 --user)")
 @click.option("--user", is_flag=True, help="批量下载该用户的全部作品 (URL_OR_ID 为 sec_user_id)")
 @click.option("--account", default=None, help="使用指定账号")
 @click.option("--json-output", "as_json", is_flag=True, help="仅输出下载链接 (JSON)")
@@ -34,7 +36,8 @@ def download(url_or_id, output_dir, music, limit, user, account, as_json):
       dy dl 1234567890                 (视频 ID)
 
     批量下载用户作品:
-      dy dl SEC_USER_ID --user --limit 20
+      dy dl SEC_USER_ID --user             (自动翻页下载全部作品)
+      dy dl SEC_USER_ID --user --limit 20 (只下载前 20 个作品)
     """
     cfg = config.load_config()
     output_dir = output_dir or cfg["default"].get("download_dir", os.path.expanduser("~/Downloads/douyin"))
@@ -45,7 +48,7 @@ def download(url_or_id, output_dir, music, limit, user, account, as_json):
     try:
         # 批量下载用户作品
         if user:
-            _batch_download_user(client, url_or_id, output_dir, music, limit or 20, as_json)
+            _batch_download_user(client, url_or_id, output_dir, music, limit, as_json)
             return
 
         # Resolve aweme_id (支持短索引)
@@ -146,7 +149,8 @@ def _batch_download_user(
     as_json: bool,
 ):
     """批量下载用户作品。"""
-    info(f"正在获取用户作品列表 (limit={limit})...")
+    limit_desc = "all" if limit <= 0 else str(limit)
+    info(f"正在获取用户作品列表 (limit={limit_desc})...")
     try:
         profile = client.get_user_profile(sec_user_id)
         nickname = profile.get("nickname", sec_user_id)
@@ -157,18 +161,22 @@ def _batch_download_user(
     user_dir = os.path.join(output_dir, re.sub(r'[\\/:*?"<>|\n\r]', '_', nickname))
     os.makedirs(user_dir, exist_ok=True)
 
-    posts = client.get_user_posts(sec_user_id, count=min(limit, 20))
-    aweme_list = posts.get("aweme_list", [])
+    aweme_list = _fetch_user_posts(client, sec_user_id, limit)
 
     if not aweme_list:
         warning("未找到作品")
         return
 
+    export_path = os.path.join(user_dir, f"{re.sub(r'[\\/:*?\"<>|\n\r]', '_', nickname)}_posts.json")
+    info("正在导出作品列表...")
+    export_data(aweme_list, export_path)
+
     info(f"找到 {len(aweme_list)} 个作品，开始下载...")
     downloaded = 0
-    import time
 
-    for i, aweme in enumerate(aweme_list[:limit], 1):
+    target_posts = aweme_list if limit <= 0 else aweme_list[:limit]
+
+    for i, aweme in enumerate(target_posts, 1):
         aweme_id = aweme.get("aweme_id", "")
         desc = aweme.get("desc", "untitled")
         safe = re.sub(r'[\\/:*?"<>|\n\r]', '_', desc)[:40].strip('_') or aweme_id
@@ -179,11 +187,11 @@ def _batch_download_user(
             if video_url:
                 path = os.path.join(user_dir, f"{i:03d}_{safe}.mp4")
                 if os.path.exists(path):
-                    info(f"[{i}/{len(aweme_list)}] 已存在，跳过: {safe[:30]}")
-                    continue
-                info(f"[{i}/{len(aweme_list)}] {safe[:30]}...")
-                _download_with_progress(client, video_url, path)
-                downloaded += 1
+                    info(f"[{i}/{len(target_posts)}] 已存在，跳过: {safe[:30]}")
+                else:
+                    info(f"[{i}/{len(target_posts)}] {safe[:30]}...")
+                    _download_with_progress(client, video_url, path)
+                    downloaded += 1
 
             # Images
             images = dl_info.get("images")
@@ -192,15 +200,49 @@ def _batch_download_user(
                     path = os.path.join(user_dir, f"{i:03d}_{safe}_{idx}.jpg")
                     client.download_file(img_url, path)
                 downloaded += 1
-
-            time.sleep(1)  # Rate limit
         except Exception as e:
             warning(f"[{i}] 下载失败: {e}")
-            continue
+        finally:
+            if i < len(target_posts):
+                info("等待 10 秒后继续，降低风控风险...")
+                time.sleep(10)
 
     console.print()
-    success(f"批量下载完成! {downloaded}/{len(aweme_list)} 个作品")
+    success(f"批量下载完成! {downloaded}/{len(target_posts)} 个作品")
     console.print(f"  📁 {user_dir}")
+
+
+def _fetch_user_posts(
+    client: DouyinAPIClient,
+    sec_user_id: str,
+    limit: int,
+) -> list[dict]:
+    """翻页获取用户作品列表。limit<=0 表示抓取全部。"""
+    aweme_list: list[dict] = []
+    max_cursor = 0
+    page_size = 20 if limit <= 0 else min(limit, 20)
+
+    while True:
+        posts = client.get_user_posts(sec_user_id, max_cursor=max_cursor, count=page_size)
+        page_items = posts.get("aweme_list", [])
+        if not page_items:
+            break
+
+        aweme_list.extend(page_items)
+
+        if limit > 0 and len(aweme_list) >= limit:
+            return aweme_list[:limit]
+
+        if not posts.get("has_more"):
+            break
+
+        next_cursor = posts.get("max_cursor", max_cursor)
+        if next_cursor == max_cursor:
+            warning("分页游标未推进，提前停止以避免死循环")
+            break
+        max_cursor = next_cursor
+
+    return aweme_list
 
 
 def _download_with_progress(client: DouyinAPIClient, url: str, output_path: str):
