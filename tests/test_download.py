@@ -61,6 +61,28 @@ def test_download_prefers_playwright_current_src(monkeypatch, tmp_path):
     assert fake_api.closed is True
 
 
+class _FakeBatchPlaywrightClient:
+    def __init__(self, account=None, headless=False):
+        self.account = account
+        self.headless = headless
+        self.calls = []
+
+    def get_video_current_src(self, aweme_id):
+        self.calls.append(aweme_id)
+        return f"https://playwright.example.com/{aweme_id}.mp4"
+
+
+class _FailingBatchPlaywrightClient:
+    def __init__(self, account=None, headless=False):
+        self.account = account
+        self.headless = headless
+
+    def get_video_current_src(self, aweme_id):
+        from dy_cli.engines.playwright_client import PlaywrightError
+
+        raise PlaywrightError("boom")
+
+
 class _FakeBatchAPIClient:
     def __init__(self, pages):
         self.pages = pages
@@ -150,6 +172,75 @@ def test_batch_user_download_fetches_all_pages_and_sleeps_between_items(monkeypa
     ]
     assert sleep_calls == [10, 10]
     assert fake_api.closed is True
+
+
+def test_batch_user_download_prefers_playwright_current_src(monkeypatch, tmp_path):
+    fake_api = _FakeBatchAPIClient(
+        {
+            0: {
+                "aweme_list": [
+                    {"aweme_id": "1001", "desc": "first"},
+                    {"aweme_id": "1002", "desc": "second"},
+                ],
+                "has_more": 0,
+                "max_cursor": 0,
+            },
+        }
+    )
+    sleep_calls = []
+    fake_playwright = _FakeBatchPlaywrightClient(account="browser", headless=True)
+
+    monkeypatch.setattr(
+        "dy_cli.commands.download.config.load_config",
+        lambda: {"default": {"download_dir": str(tmp_path), "account": "browser"}},
+    )
+    monkeypatch.setattr(
+        "dy_cli.commands.download.DouyinAPIClient.from_config",
+        lambda account: fake_api,
+    )
+    monkeypatch.setattr("dy_cli.commands.download.PlaywrightClient", lambda account=None, headless=False: fake_playwright)
+    monkeypatch.setattr("time.sleep", lambda seconds: sleep_calls.append(seconds))
+
+    result = CliRunner().invoke(download, ["SEC_UID", "--user"])
+
+    assert result.exit_code == 0
+    assert fake_playwright.calls == ["1001", "1002"]
+    assert [url for url, _ in fake_api.downloaded] == [
+        "https://playwright.example.com/1001.mp4",
+        "https://playwright.example.com/1002.mp4",
+    ]
+    assert sleep_calls == [10]
+
+
+def test_batch_user_download_falls_back_to_api_when_playwright_fails(monkeypatch, tmp_path):
+    fake_api = _FakeBatchAPIClient(
+        {
+            0: {
+                "aweme_list": [
+                    {"aweme_id": "1001", "desc": "first"},
+                ],
+                "has_more": 0,
+                "max_cursor": 0,
+            },
+        }
+    )
+
+    monkeypatch.setattr(
+        "dy_cli.commands.download.config.load_config",
+        lambda: {"default": {"download_dir": str(tmp_path), "account": "browser"}},
+    )
+    monkeypatch.setattr(
+        "dy_cli.commands.download.DouyinAPIClient.from_config",
+        lambda account: fake_api,
+    )
+    monkeypatch.setattr("dy_cli.commands.download.PlaywrightClient", _FailingBatchPlaywrightClient)
+
+    result = CliRunner().invoke(download, ["SEC_UID", "--user"])
+
+    assert result.exit_code == 0
+    assert [url for url, _ in fake_api.downloaded] == [
+        "https://api.example.com/1001.mp4",
+    ]
 
 
 def test_batch_user_download_respects_limit_across_pages(monkeypatch, tmp_path):

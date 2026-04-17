@@ -49,7 +49,8 @@ def download(url_or_id, output_dir, music, limit, user, account, as_json):
     try:
         # 批量下载用户作品
         if user:
-            _batch_download_user(client, url_or_id, output_dir, music, limit, as_json)
+            browser_account = account or cfg["default"].get("account", "default")
+            _batch_download_user(client, url_or_id, output_dir, music, limit, as_json, browser_account=browser_account)
             return
 
         # Resolve aweme_id (支持短索引)
@@ -148,6 +149,8 @@ def _batch_download_user(
     music: bool,
     limit: int,
     as_json: bool,
+    *,
+    browser_account: str | None = None,
 ):
     """批量下载用户作品。"""
     limit_desc = "all" if limit <= 0 else str(limit)
@@ -180,6 +183,12 @@ def _batch_download_user(
 
     info(f"找到 {len(aweme_list)} 个作品，开始下载...")
     downloaded = 0
+    browser_client = None
+    if not as_json:
+        try:
+            browser_client = PlaywrightClient(account=browser_account, headless=True)
+        except Exception as e:
+            warning(f"浏览器客户端初始化失败，回退 API 链路: {e}")
 
     target_posts = aweme_list if limit <= 0 else aweme_list[:limit]
     progress = _load_progress(progress_path, sec_user_id, export_path, len(target_posts), target_posts)
@@ -200,6 +209,14 @@ def _batch_download_user(
         try:
             dl_info = client.get_download_url(aweme_id)
             should_sleep = True
+            if browser_client is not None:
+                try:
+                    browser_video_url = browser_client.get_video_current_src(aweme_id)
+                    if browser_video_url.startswith("http"):
+                        dl_info["video_url"] = browser_video_url
+                        info(f"[{i}/{len(target_posts)}] 浏览器播放器地址: {browser_video_url.split('/')[2]}")
+                except PlaywrightError as e:
+                    warning(f"[{i}/{len(target_posts)}] 未能读取浏览器播放器地址，回退 API 链路: {e}")
             video_url = dl_info.get("video_url")
             if video_url:
                 if os.path.exists(video_path):
