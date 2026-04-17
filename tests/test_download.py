@@ -275,7 +275,7 @@ def test_batch_user_download_skips_existing_media_files(monkeypatch, tmp_path):
     assert [url for url, _ in fake_api.downloaded] == [
         "https://api.example.com/1002.mp4",
     ]
-    assert sleep_calls == [10]
+    assert sleep_calls == []
 
 
 def test_batch_user_download_writes_progress_file(monkeypatch, tmp_path):
@@ -385,7 +385,7 @@ def test_batch_user_download_resumes_from_failed_item(monkeypatch, tmp_path):
     assert progress["items"]["1001"]["status"] == "done"
     assert progress["items"]["1002"]["status"] == "done"
     assert progress["items"]["1003"]["status"] == "done"
-    assert sleep_calls == [10, 10]
+    assert sleep_calls == [10]
 
 
 def test_batch_user_download_prefers_existing_files_over_progress_state(monkeypatch, tmp_path):
@@ -483,6 +483,47 @@ def test_batch_user_download_matches_existing_files_ignoring_numeric_prefix(monk
     assert fake_api.downloaded == []
     assert progress["completed"] == 1
     assert progress["items"]["1001"]["status"] == "done"
+
+
+def test_batch_user_download_does_not_sleep_between_consecutive_local_skips(monkeypatch, tmp_path):
+    fake_api = _FakeBatchAPIClient({})
+    user_dir = tmp_path / "tester"
+    user_dir.mkdir()
+    (user_dir / "tester_posts.json").write_text(
+        json.dumps(
+            {
+                "sec_user_id": "SEC_UID",
+                "nickname": "tester",
+                "complete": True,
+                "total": 2,
+                "posts": [
+                    {"aweme_id": "1001", "desc": "first"},
+                    {"aweme_id": "1002", "desc": "second"},
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (user_dir / "001_first.mp4").write_bytes(b"existing")
+    (user_dir / "002_second.mp4").write_bytes(b"existing")
+    sleep_calls = []
+
+    monkeypatch.setattr(
+        "dy_cli.commands.download.config.load_config",
+        lambda: {"default": {"download_dir": str(tmp_path), "account": "browser"}},
+    )
+    monkeypatch.setattr(
+        "dy_cli.commands.download.DouyinAPIClient.from_config",
+        lambda account: fake_api,
+    )
+    monkeypatch.setattr("time.sleep", lambda seconds: sleep_calls.append(seconds))
+
+    result = CliRunner().invoke(download, ["SEC_UID", "--user"])
+
+    assert result.exit_code == 0
+    assert fake_api.download_url_calls == []
+    assert sleep_calls == []
 
 
 def test_batch_user_download_redownloads_when_only_part_file_exists(monkeypatch, tmp_path):

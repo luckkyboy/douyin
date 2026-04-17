@@ -190,17 +190,16 @@ def _batch_download_user(
         safe = re.sub(r'[\\/:*?"<>|\n\r]', '_', desc)[:40].strip('_') or aweme_id
         video_path = os.path.join(user_dir, f"{i:03d}_{safe}.mp4")
         item_progress = progress["items"].setdefault(aweme_id, {"status": "pending"})
+        should_sleep = False
 
         if _media_exists(video_path, user_dir, i, safe):
             info(f"[{i}/{len(target_posts)}] 本地文件已存在，跳过: {safe[:30]}")
             _mark_progress(progress, progress_path, aweme_id, i, "done", file=os.path.basename(video_path))
-            if i < len(target_posts):
-                info("等待 10 秒后继续，降低风控风险...")
-                time.sleep(10)
             continue
 
         try:
             dl_info = client.get_download_url(aweme_id)
+            should_sleep = True
             video_url = dl_info.get("video_url")
             if video_url:
                 if os.path.exists(video_path):
@@ -227,7 +226,7 @@ def _batch_download_user(
             warning(f"[{i}] 下载失败: {e}")
             _mark_progress(progress, progress_path, aweme_id, i, "failed", error=str(e), file=item_progress.get("file"))
         finally:
-            if i < len(target_posts):
+            if should_sleep and i < len(target_posts):
                 info("等待 10 秒后继续，降低风控风险...")
                 time.sleep(10)
 
