@@ -43,6 +43,26 @@ def test_transcribe_single_file_creates_json(monkeypatch, tmp_path):
     assert not (tmp_path / "001_alpha.transcribe.mp3").exists()
 
 
+def test_transcribe_uses_ffmpeg_friendly_temp_audio_suffix(monkeypatch, tmp_path):
+    video_path = tmp_path / "001_alpha.mp4"
+    video_path.write_bytes(b"video")
+    fake_asr = _FakeAsrClient()
+    captured = {}
+
+    def fake_extract(video_path_value, audio_path_value):
+        captured["audio_path"] = audio_path_value
+        with open(audio_path_value, "wb") as f:
+            f.write(b"audio")
+
+    monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
+    monkeypatch.setattr("dy_cli.commands.transcribe.TencentASRFlashClient.from_config", lambda: fake_asr)
+
+    result = CliRunner().invoke(cli, ["transcribe", str(video_path)])
+
+    assert result.exit_code == 0
+    assert captured["audio_path"].endswith(".transcribe.part.mp3")
+
+
 def test_transcribe_single_file_delete_video_keeps_mp3_and_json(monkeypatch, tmp_path):
     video_path = tmp_path / "001_alpha.mp4"
     video_path.write_bytes(b"video")

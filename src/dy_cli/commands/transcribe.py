@@ -85,7 +85,7 @@ def _transcribe_file(
         return
 
     audio_path = os.path.splitext(path)[0] + ".transcribe.mp3"
-    temp_audio_path = f"{audio_path}.part"
+    temp_audio_path = os.path.splitext(path)[0] + ".transcribe.part.mp3"
     extract_audio(path, temp_audio_path)
     os.replace(temp_audio_path, audio_path)
 
