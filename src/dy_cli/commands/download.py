@@ -191,8 +191,8 @@ def _batch_download_user(
         video_path = os.path.join(user_dir, f"{i:03d}_{safe}.mp4")
         item_progress = progress["items"].setdefault(aweme_id, {"status": "pending"})
 
-        if item_progress.get("status") == "done" and _media_exists(video_path, user_dir, i, safe):
-            info(f"[{i}/{len(target_posts)}] 已完成，跳过: {safe[:30]}")
+        if _media_exists(video_path, user_dir, i, safe):
+            info(f"[{i}/{len(target_posts)}] 本地文件已存在，跳过: {safe[:30]}")
             _mark_progress(progress, progress_path, aweme_id, i, "done", file=os.path.basename(video_path))
             if i < len(target_posts):
                 info("等待 10 秒后继续，降低风控风险...")
@@ -384,8 +384,19 @@ def _mark_progress(
 def _media_exists(video_path: str, user_dir: str, index: int, safe: str) -> bool:
     if os.path.exists(video_path):
         return True
-    image_prefix = f"{index:03d}_{safe}_"
-    return any(name.startswith(image_prefix) for name in os.listdir(user_dir))
+    normalized_video_name = _strip_numeric_prefix(os.path.basename(video_path))
+    image_prefix = f"{safe}_"
+    for name in os.listdir(user_dir):
+        normalized_name = _strip_numeric_prefix(name)
+        if normalized_name == normalized_video_name:
+            return True
+        if normalized_name.startswith(image_prefix):
+            return True
+    return False
+
+
+def _strip_numeric_prefix(filename: str) -> str:
+    return re.sub(r"^\d+_", "", filename)
 
 
 def _download_with_progress(client: DouyinAPIClient, url: str, output_path: str):

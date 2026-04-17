@@ -67,6 +67,7 @@ class _FakeBatchAPIClient:
         self.closed = False
         self.page_calls = []
         self.downloaded = []
+        self.download_url_calls = []
 
     def get_user_profile(self, sec_user_id):
         return {"nickname": "tester"}
@@ -76,6 +77,7 @@ class _FakeBatchAPIClient:
         return self.pages[max_cursor]
 
     def get_download_url(self, aweme_id):
+        self.download_url_calls.append(aweme_id)
         return {
             "video_url": f"https://api.example.com/{aweme_id}.mp4",
             "desc": f"desc-{aweme_id}",
@@ -384,6 +386,103 @@ def test_batch_user_download_resumes_from_failed_item(monkeypatch, tmp_path):
     assert progress["items"]["1002"]["status"] == "done"
     assert progress["items"]["1003"]["status"] == "done"
     assert sleep_calls == [10, 10]
+
+
+def test_batch_user_download_prefers_existing_files_over_progress_state(monkeypatch, tmp_path):
+    fake_api = _FakeBatchAPIClient({})
+    user_dir = tmp_path / "tester"
+    user_dir.mkdir()
+    (user_dir / "tester_posts.json").write_text(
+        json.dumps(
+            {
+                "sec_user_id": "SEC_UID",
+                "nickname": "tester",
+                "complete": True,
+                "total": 1,
+                "posts": [
+                    {"aweme_id": "1001", "desc": "first"},
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (user_dir / "001_first.mp4").write_bytes(b"existing")
+    (user_dir / "tester_progress.json").write_text(
+        json.dumps(
+            {
+                "sec_user_id": "SEC_UID",
+                "manifest_file": "tester_posts.json",
+                "total": 1,
+                "completed": 0,
+                "last_index": 0,
+                "last_aweme_id": "",
+                "items": {
+                    "1001": {"status": "failed", "error": "timeout"},
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "dy_cli.commands.download.config.load_config",
+        lambda: {"default": {"download_dir": str(tmp_path), "account": "browser"}},
+    )
+    monkeypatch.setattr(
+        "dy_cli.commands.download.DouyinAPIClient.from_config",
+        lambda account: fake_api,
+    )
+
+    result = CliRunner().invoke(download, ["SEC_UID", "--user"])
+    progress = json.loads((user_dir / "tester_progress.json").read_text(encoding="utf-8"))
+
+    assert result.exit_code == 0
+    assert fake_api.download_url_calls == []
+    assert fake_api.downloaded == []
+    assert progress["completed"] == 1
+    assert progress["items"]["1001"]["status"] == "done"
+
+
+def test_batch_user_download_matches_existing_files_ignoring_numeric_prefix(monkeypatch, tmp_path):
+    fake_api = _FakeBatchAPIClient({})
+    user_dir = tmp_path / "tester"
+    user_dir.mkdir()
+    (user_dir / "tester_posts.json").write_text(
+        json.dumps(
+            {
+                "sec_user_id": "SEC_UID",
+                "nickname": "tester",
+                "complete": True,
+                "total": 1,
+                "posts": [
+                    {"aweme_id": "1001", "desc": "first"},
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (user_dir / "087_first.mp4").write_bytes(b"existing")
+
+    monkeypatch.setattr(
+        "dy_cli.commands.download.config.load_config",
+        lambda: {"default": {"download_dir": str(tmp_path), "account": "browser"}},
+    )
+    monkeypatch.setattr(
+        "dy_cli.commands.download.DouyinAPIClient.from_config",
+        lambda account: fake_api,
+    )
+
+    result = CliRunner().invoke(download, ["SEC_UID", "--user"])
+    progress = json.loads((user_dir / "tester_progress.json").read_text(encoding="utf-8"))
+
+    assert result.exit_code == 0
+    assert fake_api.download_url_calls == []
+    assert fake_api.downloaded == []
+    assert progress["completed"] == 1
+    assert progress["items"]["1001"]["status"] == "done"
 
 
 def test_download_command_source_parses_with_python_310_grammar():
