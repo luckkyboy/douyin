@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 import re
 import time
+import json
 
 import click
 from rich.progress import BarColumn, DownloadColumn, Progress, SpinnerColumn, TextColumn, TransferSpeedColumn
@@ -13,7 +14,6 @@ from rich.progress import BarColumn, DownloadColumn, Progress, SpinnerColumn, Te
 from dy_cli.engines.api_client import DouyinAPIClient, DouyinAPIError
 from dy_cli.engines.playwright_client import PlaywrightClient, PlaywrightError
 from dy_cli.utils import config
-from dy_cli.utils.export import export_data
 from dy_cli.utils.index_cache import resolve_id
 from dy_cli.utils.output import console, error, info, success, warning
 
@@ -162,15 +162,19 @@ def _batch_download_user(
     user_dir = os.path.join(output_dir, safe_nickname)
     os.makedirs(user_dir, exist_ok=True)
 
-    aweme_list = _fetch_user_posts(client, sec_user_id, limit)
-
-    if not aweme_list:
-        warning("未找到作品")
-        return
-
     export_path = os.path.join(user_dir, f"{safe_nickname}_posts.json")
-    info("正在导出作品列表...")
-    export_data(aweme_list, export_path)
+    aweme_list = _load_cached_posts(export_path, sec_user_id)
+
+    if aweme_list is None:
+        aweme_list = _fetch_user_posts(client, sec_user_id, limit)
+        if not aweme_list:
+            warning("未找到作品")
+            return
+
+        info("正在导出作品列表...")
+        _export_posts_manifest(export_path, sec_user_id, nickname, aweme_list)
+    else:
+        info(f"复用本地作品缓存: {export_path}")
 
     info(f"找到 {len(aweme_list)} 个作品，开始下载...")
     downloaded = 0
@@ -199,6 +203,9 @@ def _batch_download_user(
             if images:
                 for idx, img_url in enumerate(images, 1):
                     path = os.path.join(user_dir, f"{i:03d}_{safe}_{idx}.jpg")
+                    if os.path.exists(path):
+                        info(f"[{i}/{len(target_posts)}] 图片已存在，跳过: {os.path.basename(path)}")
+                        continue
                     client.download_file(img_url, path)
                 downloaded += 1
         except Exception as e:
@@ -244,6 +251,46 @@ def _fetch_user_posts(
         max_cursor = next_cursor
 
     return aweme_list
+
+
+def _load_cached_posts(export_path: str, sec_user_id: str) -> list[dict] | None:
+    """加载有效的全量作品缓存。"""
+    if not os.path.exists(export_path):
+        return None
+
+    try:
+        with open(export_path, encoding="utf-8") as f:
+            payload = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        warning(f"作品缓存读取失败，重新拉取: {e}")
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("sec_user_id") != sec_user_id:
+        return None
+    if payload.get("complete") is not True:
+        return None
+
+    posts = payload.get("posts", [])
+    if not isinstance(posts, list):
+        return None
+    return posts
+
+
+def _export_posts_manifest(export_path: str, sec_user_id: str, nickname: str, posts: list[dict]) -> None:
+    """导出带元信息的全量作品缓存。"""
+    payload = {
+        "sec_user_id": sec_user_id,
+        "nickname": nickname,
+        "complete": True,
+        "total": len(posts),
+        "posts": posts,
+    }
+    os.makedirs(os.path.dirname(export_path) or ".", exist_ok=True)
+    with open(export_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    success(f"已导出 {len(posts)} 条到 {export_path}")
 
 
 def _download_with_progress(client: DouyinAPIClient, url: str, output_path: str):

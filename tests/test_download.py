@@ -130,7 +130,12 @@ def test_batch_user_download_fetches_all_pages_and_sleeps_between_items(monkeypa
 
     assert result.exit_code == 0
     assert export_path.exists()
-    assert [item["aweme_id"] for item in json.loads(export_path.read_text(encoding="utf-8"))] == [
+    exported = json.loads(export_path.read_text(encoding="utf-8"))
+    assert exported["sec_user_id"] == "SEC_UID"
+    assert exported["nickname"] == "tester"
+    assert exported["complete"] is True
+    assert exported["total"] == 3
+    assert [item["aweme_id"] for item in exported["posts"]] == [
         "1001",
         "1002",
         "1003",
@@ -187,6 +192,88 @@ def test_batch_user_download_respects_limit_across_pages(monkeypatch, tmp_path):
     ]
     assert sleep_calls == [10]
     assert fake_api.closed is True
+
+
+def test_batch_user_download_reuses_complete_posts_cache(monkeypatch, tmp_path):
+    fake_api = _FakeBatchAPIClient({})
+    user_dir = tmp_path / "tester"
+    user_dir.mkdir()
+    export_path = user_dir / "tester_posts.json"
+    export_path.write_text(
+        json.dumps(
+            {
+                "sec_user_id": "SEC_UID",
+                "nickname": "tester",
+                "complete": True,
+                "total": 2,
+                "posts": [
+                    {"aweme_id": "1001", "desc": "first"},
+                    {"aweme_id": "1002", "desc": "second"},
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    sleep_calls = []
+
+    monkeypatch.setattr(
+        "dy_cli.commands.download.config.load_config",
+        lambda: {"default": {"download_dir": str(tmp_path), "account": "browser"}},
+    )
+    monkeypatch.setattr(
+        "dy_cli.commands.download.DouyinAPIClient.from_config",
+        lambda account: fake_api,
+    )
+    monkeypatch.setattr("time.sleep", lambda seconds: sleep_calls.append(seconds))
+
+    result = CliRunner().invoke(download, ["SEC_UID", "--user"])
+
+    assert result.exit_code == 0
+    assert fake_api.page_calls == []
+    assert [url for url, _ in fake_api.downloaded] == [
+        "https://api.example.com/1001.mp4",
+        "https://api.example.com/1002.mp4",
+    ]
+    assert sleep_calls == [10]
+    assert fake_api.closed is True
+
+
+def test_batch_user_download_skips_existing_media_files(monkeypatch, tmp_path):
+    fake_api = _FakeBatchAPIClient(
+        {
+            0: {
+                "aweme_list": [
+                    {"aweme_id": "1001", "desc": "first"},
+                    {"aweme_id": "1002", "desc": "second"},
+                ],
+                "has_more": 0,
+                "max_cursor": 0,
+            },
+        }
+    )
+    user_dir = tmp_path / "tester"
+    user_dir.mkdir()
+    (user_dir / "001_first.mp4").write_bytes(b"existing")
+    sleep_calls = []
+
+    monkeypatch.setattr(
+        "dy_cli.commands.download.config.load_config",
+        lambda: {"default": {"download_dir": str(tmp_path), "account": "browser"}},
+    )
+    monkeypatch.setattr(
+        "dy_cli.commands.download.DouyinAPIClient.from_config",
+        lambda account: fake_api,
+    )
+    monkeypatch.setattr("time.sleep", lambda seconds: sleep_calls.append(seconds))
+
+    result = CliRunner().invoke(download, ["SEC_UID", "--user"])
+
+    assert result.exit_code == 0
+    assert [url for url, _ in fake_api.downloaded] == [
+        "https://api.example.com/1002.mp4",
+    ]
+    assert sleep_calls == [10]
 
 
 def test_download_command_source_parses_with_python_310_grammar():
