@@ -485,6 +485,47 @@ def test_batch_user_download_matches_existing_files_ignoring_numeric_prefix(monk
     assert progress["items"]["1001"]["status"] == "done"
 
 
+def test_batch_user_download_redownloads_when_only_part_file_exists(monkeypatch, tmp_path):
+    fake_api = _FakeBatchAPIClient({})
+    user_dir = tmp_path / "tester"
+    user_dir.mkdir()
+    (user_dir / "tester_posts.json").write_text(
+        json.dumps(
+            {
+                "sec_user_id": "SEC_UID",
+                "nickname": "tester",
+                "complete": True,
+                "total": 1,
+                "posts": [
+                    {"aweme_id": "1001", "desc": "first"},
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (user_dir / "001_first.mp4.part").write_bytes(b"partial")
+
+    monkeypatch.setattr(
+        "dy_cli.commands.download.config.load_config",
+        lambda: {"default": {"download_dir": str(tmp_path), "account": "browser"}},
+    )
+    monkeypatch.setattr(
+        "dy_cli.commands.download.DouyinAPIClient.from_config",
+        lambda account: fake_api,
+    )
+
+    result = CliRunner().invoke(download, ["SEC_UID", "--user"])
+    progress = json.loads((user_dir / "tester_progress.json").read_text(encoding="utf-8"))
+
+    assert result.exit_code == 0
+    assert fake_api.download_url_calls == ["1001"]
+    assert fake_api.downloaded[0][1].endswith("001_first.mp4.part")
+    assert (user_dir / "001_first.mp4").exists()
+    assert progress["completed"] == 1
+    assert progress["items"]["1001"]["status"] == "done"
+
+
 def test_download_command_source_parses_with_python_310_grammar():
     source = Path("src/dy_cli/commands/download.py").read_text(encoding="utf-8")
 

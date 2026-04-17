@@ -220,7 +220,7 @@ def _batch_download_user(
                     if os.path.exists(path):
                         info(f"[{i}/{len(target_posts)}] 图片已存在，跳过: {os.path.basename(path)}")
                         continue
-                    client.download_file(img_url, path)
+                    _download_atomically(client, img_url, path)
                 downloaded += 1
             _mark_progress(progress, progress_path, aweme_id, i, "done", file=item_progress.get("file"))
         except Exception as e:
@@ -401,6 +401,7 @@ def _strip_numeric_prefix(filename: str) -> str:
 
 def _download_with_progress(client: DouyinAPIClient, url: str, output_path: str):
     """带进度条的下载。"""
+    temp_path = f"{output_path}.part"
     with Progress(
         SpinnerColumn(),
         TextColumn("[bold blue]{task.description}"),
@@ -417,4 +418,12 @@ def _download_with_progress(client: DouyinAPIClient, url: str, output_path: str)
             else:
                 progress.update(task, completed=downloaded)
 
-        client.download_file(url, output_path, progress_callback=on_progress)
+        client.download_file(url, temp_path, progress_callback=on_progress)
+    os.replace(temp_path, output_path)
+
+
+def _download_atomically(client: DouyinAPIClient, url: str, output_path: str):
+    """先写入 .part，完成后再原子重命名。"""
+    temp_path = f"{output_path}.part"
+    client.download_file(url, temp_path)
+    os.replace(temp_path, output_path)
