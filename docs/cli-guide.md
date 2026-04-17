@@ -98,6 +98,23 @@ dy dl SEC_USER_ID --user --limit 20        # 只下载前 20 个作品
 - 下载阶段如果目标视频或图片文件已存在，会自动跳过
 - 每个作品之间固定等待 10 秒，降低触发风控的概率
 
+### 转写
+
+```bash
+dy transcribe /path/to/video.mp4         # 转写单个本地视频
+dy transcribe /path/to/dir               # 批量转写目录下的本地视频
+dy transcribe /path/to/dir --force       # 即使已有同名 json 也重新转写
+```
+
+批量转写本地视频时，当前逻辑为：
+
+- 仅处理已经下载到本地的 `.mp4` 文件，不会自动下载视频
+- 先使用 `ffmpeg` 从视频中提取音频，再调用腾讯云“录音文件识别极速版”
+- 每个视频输出同名 `.json`，例如 `087_xxx.mp4 -> 087_xxx.json`
+- 目录模式下会生成 `transcribe_progress.json`，用于记录 `done/failed/pending` 状态
+- 如果同名 `.json` 已存在，默认直接跳过，并视为该视频已完成转写
+- 使用 `.part` 临时文件写中间音频和结果 JSON，避免中断后把半截文件误判为成功
+
 ### 发布
 
 ```bash
@@ -185,6 +202,10 @@ dy config set api.proxy http://...       # 设置代理
 dy config set api.timeout 60             # 请求超时
 dy config set playwright.headless true   # 无头模式
 dy config set default.download_dir ~/Vid # 下载目录
+dy config set asr.tencent.app_id xxx     # 腾讯 ASR AppID
+dy config set asr.tencent.secret_id xxx  # 腾讯 ASR SecretID
+dy config set asr.tencent.secret_key xxx # 腾讯 ASR SecretKey
+dy config set asr.tencent.engine_type 16k_zh # 腾讯 ASR 引擎
 dy config get api.proxy                  # 获取单项
 dy config reset                          # 重置默认
 ```

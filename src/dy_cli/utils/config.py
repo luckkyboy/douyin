@@ -28,6 +28,15 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "output": "table",      # table | json
         "download_dir": os.path.expanduser("~/Downloads/douyin"),
     },
+    "asr": {
+        "provider": "tencent",
+        "tencent": {
+            "app_id": "",
+            "secret_id": "",
+            "secret_key": "",
+            "engine_type": "16k_zh",
+        },
+    },
 }
 
 

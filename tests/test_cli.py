@@ -24,7 +24,7 @@ class TestCLI:
             "detail", "like", "favorite", "comment",
             "follow", "live", "analytics", "notifications",
             "me", "profile", "login", "logout", "status",
-            "account", "config", "init", "comments",
+            "account", "config", "init", "comments", "transcribe",
         ]
         for cmd in commands:
             assert cmd in result.output, f"Command '{cmd}' not in help output"
@@ -59,6 +59,7 @@ class TestSubcommandHelp:
         ["config", "--help"],
         ["config", "show", "--help"],
         ["init", "--help"],
+        ["transcribe", "--help"],
     ]
 
     def test_all_help(self):

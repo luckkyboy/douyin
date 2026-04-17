@@ -21,6 +21,11 @@ class TestLoadSave:
         cfg = config.load_config()
         assert cfg["default"]["engine"] == "auto"
         assert cfg["api"]["timeout"] == 30
+        assert cfg["asr"]["provider"] == "tencent"
+        assert cfg["asr"]["tencent"]["app_id"] == ""
+        assert cfg["asr"]["tencent"]["secret_id"] == ""
+        assert cfg["asr"]["tencent"]["secret_key"] == ""
+        assert cfg["asr"]["tencent"]["engine_type"] == "16k_zh"
 
     def test_save_and_load(self):
         cfg = config.load_config()

@@ -100,6 +100,11 @@ from dy_cli.commands.download import download
 
 cli.add_command(download)
 
+# 转写
+from dy_cli.commands.transcribe import transcribe
+
+cli.add_command(transcribe)
+
 # 发布
 from dy_cli.commands.publish import publish
 

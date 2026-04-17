@@ -53,6 +53,7 @@ dy publish -t "标题" -c "描述" -v video.mp4   # Publish video
 
 - 🔍 **Search** — keyword search with sort/time/type filters, user search
 - 📥 **Download** — no-watermark video/image with progress bar, supports full user archive download with local manifest cache
+- 📝 **Transcribe** — extract audio from local videos and save Tencent ASR transcripts as same-name JSON files
 - 📝 **Publish** — video & image posts with tags, cover, scheduling, visibility
 - 🔥 **Trending** — real-time hot search Top 50 with watch mode
 - 📺 **Live** — stream info, URL extraction, ffmpeg recording
@@ -110,6 +111,23 @@ dy live info ROOM_ID                     # Live stream info
 dy live record ROOM_ID                   # Record with ffmpeg
 ```
 
+### Transcribe
+
+```bash
+dy transcribe /path/to/video.mp4         # Transcribe one local video
+dy transcribe /path/to/dir               # Batch-transcribe a directory of local videos
+dy transcribe /path/to/dir --force       # Rebuild existing transcript JSON files
+```
+
+Transcription behavior:
+
+- `dy transcribe <file_or_dir>` only works on already-downloaded local videos
+- audio is extracted with `ffmpeg` and submitted to Tencent ASR flash recognition
+- each video writes a same-name transcript JSON, for example `087_xxx.mp4 -> 087_xxx.json`
+- directory mode writes `transcribe_progress.json` for resume support
+- existing same-name `.json` files are treated as completed work and skipped by default
+- `.part` files are used for intermediate audio and JSON output so interrupted runs are not treated as complete
+
 ### Publish
 
 ```bash
@@ -148,6 +166,10 @@ dy status                                # Login status
 dy account list                          # List accounts
 dy config show                           # Show config
 dy config set api.proxy http://...       # Set proxy
+dy config set asr.tencent.app_id xxx     # Set Tencent ASR app id
+dy config set asr.tencent.secret_id xxx  # Set Tencent ASR secret id
+dy config set asr.tencent.secret_key xxx # Set Tencent ASR secret key
+dy config set asr.tencent.engine_type 16k_zh  # Set Tencent ASR engine
 ```
 
 ### Aliases
