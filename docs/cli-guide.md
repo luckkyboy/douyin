@@ -102,24 +102,25 @@ dy dl SEC_USER_ID --user --limit 20        # 只下载前 20 个作品
 ### 转写
 
 ```bash
-dy transcribe /path/to/video.mp4         # 转写单个本地视频
-dy transcribe /path/to/audio.mp3         # 直接转写单个本地音频文件
-dy transcribe /path/to/dir               # 批量转写目录下的本地视频
-dy transcribe /path/to/dir --force       # 即使已有同名 json 也重新转写
-dy transcribe /path/to/dir --delete-video # 转写成功后删除原 mp4，保留 mp3 和 json
+dy transcribe /path/to/video.mp4         # 转写单个本地视频，默认输出 srt
+dy transcribe /path/to/audio.mp3         # 直接转写单个本地音频文件，默认输出 srt
+dy transcribe /path/to/dir               # 批量转写目录下的本地音视频
+dy transcribe /path/to/dir --format json # 输出同名 json 而不是 srt
+dy transcribe /path/to/dir --force       # 即使已有同名输出文件也重新转写
+dy transcribe /path/to/dir --delete-video # 转写成功后删除原 mp4，保留 mp3 和 srt/json
 ```
 
-批量转写本地视频时，当前逻辑为：
+批量转写本地音视频时，当前逻辑为：
 
-- 仅处理已经下载到本地的 `.mp4` 文件，不会自动下载视频
-- 先使用 `ffmpeg` 从视频中提取音频，再调用腾讯云“录音文件识别极速版”
-- 每个视频输出同名 `.json`，例如 `087_xxx.mp4 -> 087_xxx.json`
+- 仅处理已经下载到本地的音视频文件，不会自动下载视频
+- 视频先使用 `ffmpeg` 提取音频，再调用本地 Whisper Webservice
+- 默认输出同名 `.srt`；如果指定 `--format json`，则输出同名 `.json`
 - 目录模式下会生成 `transcribe_progress.json`，用于记录 `done/failed/pending` 状态
 - 直接传入 `.mp3/.m4a/.wav/.aac/.flac/.ogg` 等音频文件时，不再调用 `ffmpeg` 抽取音频
-- 如果同名 `.json` 已存在，默认直接跳过，并视为该视频已完成转写
-- 使用 `.part` 临时文件写中间音频和结果 JSON，避免中断后把半截文件误判为成功
-- 默认不删除任何文件，原视频 `.mp4`、提取出的 `.transcribe.mp3` 和转写结果 `.json` 都保留
-- 如果加上 `--delete-video`，则在转写成功后删除原 `.mp4`，但继续保留 `.transcribe.mp3` 和 `.json`
+- 如果当前格式对应的同名输出文件已存在，默认直接跳过，并视为该文件已完成转写
+- 使用 `.part` 临时文件写中间音频和结果文件，避免中断后把半截文件误判为成功
+- 默认不删除任何文件，原视频 `.mp4`、提取出的 `.transcribe.mp3` 和转写结果 `.srt/.json` 都保留
+- 如果加上 `--delete-video`，则在转写成功后删除原 `.mp4`，但继续保留 `.transcribe.mp3` 和 `.srt/.json`
 
 ### 发布
 

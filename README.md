@@ -115,11 +115,12 @@ dy live record ROOM_ID                   # Record with ffmpeg
 ### Transcribe
 
 ```bash
-dy transcribe /path/to/video.mp4         # Transcribe one local video
-dy transcribe /path/to/audio.mp3         # Transcribe one local audio file directly
-dy transcribe /path/to/dir               # Batch-transcribe a directory of local videos
-dy transcribe /path/to/dir --force       # Rebuild existing transcript JSON files
-dy transcribe /path/to/dir --delete-video # Delete mp4 after successful transcription, keep mp3 + json
+dy transcribe /path/to/video.mp4         # Transcribe one local video, default output .srt
+dy transcribe /path/to/audio.mp3         # Transcribe one local audio file directly, default output .srt
+dy transcribe /path/to/dir               # Batch-transcribe a directory of local media
+dy transcribe /path/to/dir --format json # Output same-name .json instead of .srt
+dy transcribe /path/to/dir --force       # Rebuild existing transcript output files
+dy transcribe /path/to/dir --delete-video # Delete mp4 after successful transcription, keep mp3 + subtitle/transcript
 ```
 
 Transcription behavior:
@@ -127,13 +128,13 @@ Transcription behavior:
 - `dy transcribe <file_or_dir>` works on already-downloaded local videos and supported local audio files
 - audio is extracted with `ffmpeg` and submitted to a local Whisper ASR webservice
 - direct audio inputs such as `.mp3` skip the ffmpeg extraction step and are submitted as-is
-- each video writes a same-name transcript JSON, for example `087_xxx.mp4 -> 087_xxx.json`
+- default output is same-name `.srt`; when `--format json` is used, output becomes same-name `.json`
 - directory mode writes `transcribe_progress.json` for resume support
-- existing same-name `.json` files are treated as completed work and skipped by default
+- existing same-name output files for the selected format are treated as completed work and skipped by default
 - `.part` files are used for intermediate audio and JSON output so interrupted runs are not treated as complete
-- by default the original `.mp4`, extracted `.transcribe.mp3`, and transcript `.json` are all kept
-- when `--delete-video` is provided, the original `.mp4` is removed after a successful transcription, while the `.transcribe.mp3` and `.json` are kept
-- transcript JSON keeps both `text_raw` and corrected `text`; you can configure `asr.replace_map` to normalize common misrecognitions
+- by default the original `.mp4`, extracted `.transcribe.mp3`, and transcript/subtitle output are all kept
+- when `--delete-video` is provided, the original `.mp4` is removed after a successful transcription, while the `.transcribe.mp3` and `.srt/.json` are kept
+- `--format json` writes structured transcript JSON with both `text_raw` and corrected `text`; you can configure `asr.replace_map` to normalize common misrecognitions
 
 ### Publish
 
