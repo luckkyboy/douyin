@@ -158,7 +158,8 @@ def _batch_download_user(
     except Exception:
         nickname = sec_user_id
 
-    user_dir = os.path.join(output_dir, re.sub(r'[\\/:*?"<>|\n\r]', '_', nickname))
+    safe_nickname = re.sub(r'[\\/:*?"<>|\n\r]', '_', nickname)
+    user_dir = os.path.join(output_dir, safe_nickname)
     os.makedirs(user_dir, exist_ok=True)
 
     aweme_list = _fetch_user_posts(client, sec_user_id, limit)
@@ -167,7 +168,7 @@ def _batch_download_user(
         warning("未找到作品")
         return
 
-    export_path = os.path.join(user_dir, f"{re.sub(r'[\\/:*?\"<>|\n\r]', '_', nickname)}_posts.json")
+    export_path = os.path.join(user_dir, f"{safe_nickname}_posts.json")
     info("正在导出作品列表...")
     export_data(aweme_list, export_path)
 

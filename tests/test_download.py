@@ -1,4 +1,6 @@
 import json
+from ast import parse
+from pathlib import Path
 
 from click.testing import CliRunner
 
@@ -185,3 +187,9 @@ def test_batch_user_download_respects_limit_across_pages(monkeypatch, tmp_path):
     ]
     assert sleep_calls == [10]
     assert fake_api.closed is True
+
+
+def test_download_command_source_parses_with_python_310_grammar():
+    source = Path("src/dy_cli/commands/download.py").read_text(encoding="utf-8")
+
+    parse(source, filename="download.py", feature_version=(3, 10))
