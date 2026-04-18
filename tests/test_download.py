@@ -84,7 +84,7 @@ def test_single_download_with_audio_keeps_video_and_creates_mp3(monkeypatch, tmp
     assert result.exit_code == 0
     assert (tmp_path / "tester_demo.mp4").exists()
     assert (tmp_path / "tester_demo.mp3").exists()
-    assert extract_calls == [(str(tmp_path / "tester_demo.mp4"), str(tmp_path / "tester_demo.mp3.part"))]
+    assert extract_calls == [(str(tmp_path / "tester_demo.mp4"), str(tmp_path / "tester_demo.part.mp3"))]
 
 
 def test_single_download_with_audio_delete_video_removes_mp4(monkeypatch, tmp_path):
@@ -740,7 +740,7 @@ def test_batch_user_download_with_audio_extracts_mp3(monkeypatch, tmp_path):
     assert extract_calls == [
         (
             str(tmp_path / "tester" / "001_first.mp4"),
-            str(tmp_path / "tester" / "001_first.mp3.part"),
+            str(tmp_path / "tester" / "001_first.part.mp3"),
         )
     ]
 

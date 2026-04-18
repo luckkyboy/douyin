@@ -486,7 +486,7 @@ def _download_atomically(client: DouyinAPIClient, url: str, output_path: str):
 def _extract_downloaded_audio_file(video_path: str, *, delete_video: bool) -> str:
     """对刚下载完成的视频做音频后处理。"""
     audio_path = _get_audio_output_path(video_path)
-    temp_audio_path = f"{audio_path}.part"
+    temp_audio_path = os.path.splitext(video_path)[0] + ".part.mp3"
     try:
         info(f"正在提取音频: {os.path.basename(audio_path)}")
         extract_audio(video_path, temp_audio_path)
