@@ -131,6 +131,7 @@ Transcription behavior:
 
 - `dy transcribe <file_or_dir>` works on already-downloaded local videos and supported local audio files
 - audio is extracted with `ffmpeg` and submitted to a local Whisper ASR webservice
+- if a same-name audio file such as `demo.mp3` already exists next to `demo.mp4`, transcribe reuses that audio directly instead of extracting again
 - direct audio inputs such as `.mp3` skip the ffmpeg extraction step and are submitted as-is
 - default output is same-name `.srt`; when `--format json` is used, output becomes same-name `.json`
 - directory mode writes `transcribe_progress.json` for resume support

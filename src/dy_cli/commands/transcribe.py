@@ -49,7 +49,7 @@ def _transcribe_dir(
     limit: int,
     output_format: str,
 ) -> None:
-    files = sorted(name for name in os.listdir(path) if _is_supported_media_file(name))
+    files = _list_transcribe_targets(path)
     if limit > 0:
         files = files[:limit]
     if not files:
@@ -93,11 +93,16 @@ def _transcribe_file(
         return
 
     source_is_audio = _is_audio_file(path)
-    audio_path = path if source_is_audio else os.path.splitext(path)[0] + ".transcribe.mp3"
-    if not source_is_audio:
+    existing_audio_path = None if source_is_audio else _find_existing_audio_for_video(path)
+    audio_path = path if source_is_audio else (existing_audio_path or os.path.splitext(path)[0] + ".transcribe.mp3")
+    created_temp_audio = False
+    if not source_is_audio and existing_audio_path is None:
         temp_audio_path = os.path.splitext(path)[0] + ".transcribe.part.mp3"
         extract_audio(path, temp_audio_path)
         os.replace(temp_audio_path, audio_path)
+        created_temp_audio = True
+    elif existing_audio_path is not None:
+        info(f"复用现有音频: {os.path.basename(existing_audio_path)}")
 
     try:
         result = client.transcribe(audio_path)
@@ -120,7 +125,7 @@ def _transcribe_file(
         if delete_video and not source_is_audio and os.path.exists(path):
             os.remove(path)
     finally:
-        keep_audio = source_is_audio or audio_keep or delete_video
+        keep_audio = source_is_audio or not created_temp_audio or audio_keep or delete_video
         if not keep_audio and os.path.exists(audio_path):
             os.remove(audio_path)
 
@@ -163,6 +168,29 @@ def _is_audio_file(path: str) -> bool:
 def _is_supported_media_file(path: str) -> bool:
     suffix = os.path.splitext(path)[1].lower()
     return suffix == ".mp4" or suffix in AUDIO_EXTENSIONS
+
+
+def _list_transcribe_targets(path: str) -> list[str]:
+    """列出目录下待转写目标：同 basename 时优先直接使用现有音频，而不是再次处理视频。"""
+    selected: dict[str, str] = {}
+    for name in sorted(os.listdir(path)):
+        if not _is_supported_media_file(name):
+            continue
+        stem = os.path.splitext(name)[0]
+        existing = selected.get(stem)
+        if existing is None or (_is_audio_file(name) and not _is_audio_file(existing)):
+            selected[stem] = name
+    return sorted(selected.values())
+
+
+def _find_existing_audio_for_video(path: str) -> str | None:
+    """查找视频旁边同 basename 的已提取音频，例如 `demo.mp4 -> demo.mp3`。"""
+    stem, _ = os.path.splitext(path)
+    for suffix in sorted(AUDIO_EXTENSIONS):
+        candidate = stem + suffix
+        if os.path.exists(candidate):
+            return candidate
+    return None
 
 
 def _get_output_path(path: str, output_format: str) -> str:

@@ -87,6 +87,27 @@ def test_transcribe_defaults_to_srt_output(monkeypatch, tmp_path):
     assert "转写文本" in content
 
 
+def test_transcribe_single_video_reuses_same_name_mp3(monkeypatch, tmp_path):
+    video_path = tmp_path / "001_alpha.mp4"
+    audio_path = tmp_path / "001_alpha.mp3"
+    video_path.write_bytes(b"video")
+    audio_path.write_bytes(b"audio")
+    fake_asr = _FakeWhisperClient()
+
+    def fake_extract(video_path_value, audio_path_value):
+        raise AssertionError("extract_audio should not be called when same-name audio already exists")
+
+    monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
+    monkeypatch.setattr("dy_cli.commands.transcribe.WhisperWebserviceClient.from_config", lambda: fake_asr)
+
+    result = CliRunner().invoke(cli, ["transcribe", str(video_path)])
+
+    assert result.exit_code == 0
+    assert fake_asr.calls == [str(audio_path)]
+    assert video_path.exists()
+    assert audio_path.exists()
+
+
 def test_transcribe_uses_ffmpeg_friendly_temp_audio_suffix(monkeypatch, tmp_path):
     video_path = tmp_path / "001_alpha.mp4"
     video_path.write_bytes(b"video")
@@ -191,6 +212,30 @@ def test_transcribe_dir_writes_progress_and_resumes(monkeypatch, tmp_path):
     assert progress["completed"] == 2
     assert progress["last_file"] == "002_beta.mp4"
     assert progress["items"]["002_beta.mp4"]["status"] == "done"
+
+
+def test_transcribe_dir_prefers_same_name_audio_over_video(monkeypatch, tmp_path):
+    video_path = tmp_path / "001_alpha.mp4"
+    audio_path = tmp_path / "001_alpha.mp3"
+    video_path.write_bytes(b"video")
+    audio_path.write_bytes(b"audio")
+    fake_asr = _FakeWhisperClient()
+
+    def fake_extract(video_path_value, audio_path_value):
+        raise AssertionError("extract_audio should not be called when directory already contains same-name audio")
+
+    monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
+    monkeypatch.setattr("dy_cli.commands.transcribe.WhisperWebserviceClient.from_config", lambda: fake_asr)
+
+    result = CliRunner().invoke(cli, ["transcribe", str(tmp_path)])
+    progress = json.loads((tmp_path / "transcribe_progress.json").read_text(encoding="utf-8"))
+
+    assert result.exit_code == 0
+    assert fake_asr.calls == [str(audio_path)]
+    assert (tmp_path / "001_alpha.srt").exists()
+    assert progress["total"] == 1
+    assert "001_alpha.mp3" in progress["items"]
+    assert "001_alpha.mp4" not in progress["items"]
 
 
 def test_transcribe_help_registered_in_cli():
