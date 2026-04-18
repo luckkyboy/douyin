@@ -61,6 +61,68 @@ def test_download_prefers_playwright_current_src(monkeypatch, tmp_path):
     assert fake_api.closed is True
 
 
+def test_single_download_with_audio_keeps_video_and_creates_mp3(monkeypatch, tmp_path):
+    fake_api = _FakeAPIClient()
+    extract_calls = []
+
+    def fake_extract(video_path, audio_path):
+        extract_calls.append((video_path, audio_path))
+        with open(audio_path, "wb") as f:
+            f.write(b"audio")
+
+    monkeypatch.setattr("dy_cli.commands.download.resolve_id", lambda value: value)
+    monkeypatch.setattr(
+        "dy_cli.commands.download.config.load_config",
+        lambda: {"default": {"download_dir": str(tmp_path), "account": "browser"}},
+    )
+    monkeypatch.setattr("dy_cli.commands.download.DouyinAPIClient.from_config", lambda account: fake_api)
+    monkeypatch.setattr("dy_cli.commands.download.PlaywrightClient", _FakePlaywrightClient)
+    monkeypatch.setattr("dy_cli.commands.download.extract_audio", fake_extract)
+
+    result = CliRunner().invoke(download, ["1234567890123456789", "--audio"])
+
+    assert result.exit_code == 0
+    assert (tmp_path / "tester_demo.mp4").exists()
+    assert (tmp_path / "tester_demo.mp3").exists()
+    assert extract_calls == [(str(tmp_path / "tester_demo.mp4"), str(tmp_path / "tester_demo.mp3.part"))]
+
+
+def test_single_download_with_audio_delete_video_removes_mp4(monkeypatch, tmp_path):
+    fake_api = _FakeAPIClient()
+
+    def fake_extract(video_path, audio_path):
+        with open(audio_path, "wb") as f:
+            f.write(b"audio")
+
+    monkeypatch.setattr("dy_cli.commands.download.resolve_id", lambda value: value)
+    monkeypatch.setattr(
+        "dy_cli.commands.download.config.load_config",
+        lambda: {"default": {"download_dir": str(tmp_path), "account": "browser"}},
+    )
+    monkeypatch.setattr("dy_cli.commands.download.DouyinAPIClient.from_config", lambda account: fake_api)
+    monkeypatch.setattr("dy_cli.commands.download.PlaywrightClient", _FakePlaywrightClient)
+    monkeypatch.setattr("dy_cli.commands.download.extract_audio", fake_extract)
+
+    result = CliRunner().invoke(download, ["1234567890123456789", "--audio-delete-video"])
+
+    assert result.exit_code == 0
+    assert not (tmp_path / "tester_demo.mp4").exists()
+    assert (tmp_path / "tester_demo.mp3").exists()
+
+
+def test_single_download_rejects_audio_flags_together(monkeypatch, tmp_path):
+    monkeypatch.setattr("dy_cli.commands.download.resolve_id", lambda value: value)
+    monkeypatch.setattr(
+        "dy_cli.commands.download.config.load_config",
+        lambda: {"default": {"download_dir": str(tmp_path), "account": "browser"}},
+    )
+
+    result = CliRunner().invoke(download, ["1234567890123456789", "--audio", "--audio-delete-video"])
+
+    assert result.exit_code == 1
+    assert "不能同时使用" in result.output
+
+
 class _FakeBatchPlaywrightClient:
     def __init__(self, account=None, headless=False):
         self.account = account
@@ -609,6 +671,109 @@ def test_batch_user_download_skips_when_matching_mp3_exists(monkeypatch, tmp_pat
     assert result.exit_code == 0
     assert fake_api.download_url_calls == []
     assert fake_api.downloaded == []
+
+
+def test_batch_user_download_skips_when_matching_plain_mp3_exists(monkeypatch, tmp_path):
+    fake_api = _FakeBatchAPIClient({})
+    user_dir = tmp_path / "tester"
+    user_dir.mkdir()
+    (user_dir / "tester_posts.json").write_text(
+        json.dumps(
+            {
+                "sec_user_id": "SEC_UID",
+                "nickname": "tester",
+                "complete": True,
+                "total": 1,
+                "posts": [{"aweme_id": "1001", "desc": "first"}],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (user_dir / "087_first.mp3").write_bytes(b"audio")
+
+    monkeypatch.setattr(
+        "dy_cli.commands.download.config.load_config",
+        lambda: {"default": {"download_dir": str(tmp_path), "account": "browser"}},
+    )
+    monkeypatch.setattr(
+        "dy_cli.commands.download.DouyinAPIClient.from_config",
+        lambda account: fake_api,
+    )
+
+    result = CliRunner().invoke(download, ["SEC_UID", "--user"])
+
+    assert result.exit_code == 0
+    assert fake_api.download_url_calls == []
+    assert fake_api.downloaded == []
+
+
+def test_batch_user_download_with_audio_extracts_mp3(monkeypatch, tmp_path):
+    fake_api = _FakeBatchAPIClient(
+        {
+            0: {
+                "aweme_list": [{"aweme_id": "1001", "desc": "first"}],
+                "has_more": 0,
+                "max_cursor": 0,
+            },
+        }
+    )
+    extract_calls = []
+
+    def fake_extract(video_path, audio_path):
+        extract_calls.append((video_path, audio_path))
+        with open(audio_path, "wb") as f:
+            f.write(b"audio")
+
+    monkeypatch.setattr(
+        "dy_cli.commands.download.config.load_config",
+        lambda: {"default": {"download_dir": str(tmp_path), "account": "browser"}},
+    )
+    monkeypatch.setattr("dy_cli.commands.download.DouyinAPIClient.from_config", lambda account: fake_api)
+    monkeypatch.setattr("dy_cli.commands.download.extract_audio", fake_extract)
+
+    result = CliRunner().invoke(download, ["SEC_UID", "--user", "--audio"])
+
+    assert result.exit_code == 0
+    assert (tmp_path / "tester" / "001_first.mp4").exists()
+    assert (tmp_path / "tester" / "001_first.mp3").exists()
+    assert extract_calls == [
+        (
+            str(tmp_path / "tester" / "001_first.mp4"),
+            str(tmp_path / "tester" / "001_first.mp3.part"),
+        )
+    ]
+
+
+def test_batch_user_download_with_audio_delete_video_removes_mp4(monkeypatch, tmp_path):
+    fake_api = _FakeBatchAPIClient(
+        {
+            0: {
+                "aweme_list": [{"aweme_id": "1001", "desc": "first"}],
+                "has_more": 0,
+                "max_cursor": 0,
+            },
+        }
+    )
+
+    def fake_extract(video_path, audio_path):
+        with open(audio_path, "wb") as f:
+            f.write(b"audio")
+
+    monkeypatch.setattr(
+        "dy_cli.commands.download.config.load_config",
+        lambda: {"default": {"download_dir": str(tmp_path), "account": "browser"}},
+    )
+    monkeypatch.setattr("dy_cli.commands.download.DouyinAPIClient.from_config", lambda account: fake_api)
+    monkeypatch.setattr("dy_cli.commands.download.extract_audio", fake_extract)
+
+    result = CliRunner().invoke(download, ["SEC_UID", "--user", "--audio-delete-video"])
+    progress = json.loads((tmp_path / "tester" / "tester_progress.json").read_text(encoding="utf-8"))
+
+    assert result.exit_code == 0
+    assert not (tmp_path / "tester" / "001_first.mp4").exists()
+    assert (tmp_path / "tester" / "001_first.mp3").exists()
+    assert progress["items"]["1001"]["file"] == "001_first.mp3"
 
 
 def test_batch_user_download_skips_when_matching_transcript_json_exists(monkeypatch, tmp_path):

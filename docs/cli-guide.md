@@ -82,6 +82,8 @@ dy search "科技" --json-output           # JSON 输出
 dy download https://v.douyin.com/xxxxx/   # 分享链接
 dy download 1234567890                     # 视频 ID
 dy download URL --music                    # 同时下载 BGM
+dy download URL --audio                    # 下载后额外提取同名 mp3
+dy download URL --audio-delete-video       # 下载后提取 mp3，并删除 mp4
 dy download URL -o ~/Videos/douyin         # 指定目录
 dy download URL --json-output              # 仅输出链接
 dy dl SEC_USER_ID --user                   # 自动翻页下载账号全部作品
@@ -96,7 +98,9 @@ dy dl SEC_USER_ID --user --limit 20        # 只下载前 20 个作品
 - 如果后续再次执行同一个账号的全量下载，并且本地 `posts.json` 已存在且标记为完整，会直接复用该缓存，不再重新请求作品列表
 - 再次执行时，会优先读取 `progress.json`，从未完成或失败的作品继续下载，而不是从头开始
 - 下载阶段如果目标视频或图片文件已存在，会自动跳过
-- 如果目录里已经存在同名 `.transcribe.mp3` 或同名转写 `.json`，也会把该原视频视为已处理，直接跳过下载
+- 如果目录里已经存在同名 `.mp3`、`.transcribe.mp3` 或同名转写 `.json`，也会把该原视频视为已处理，直接跳过下载
+- 如果指定 `--audio`，视频下载完成后会立即提取同名 `.mp3`，但保留 `.mp4`
+- 如果指定 `--audio-delete-video`，则提取同名 `.mp3` 后删除下载好的 `.mp4`
 - 只有在当前作品确实发起了远端请求/下载后，才会在作品之间等待 10 秒；本地直接跳过不会额外等待
 
 ### 转写

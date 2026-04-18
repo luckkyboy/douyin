@@ -14,6 +14,7 @@ from rich.progress import BarColumn, DownloadColumn, Progress, SpinnerColumn, Te
 
 from dy_cli.engines.api_client import DouyinAPIClient, DouyinAPIError
 from dy_cli.engines.playwright_client import PlaywrightClient, PlaywrightError
+from dy_cli.services.media import MediaError, extract_audio
 from dy_cli.utils import config
 from dy_cli.utils.index_cache import resolve_id
 from dy_cli.utils.output import console, error, info, success, warning
@@ -23,11 +24,13 @@ from dy_cli.utils.output import console, error, info, success, warning
 @click.argument("url_or_id")
 @click.option("--output-dir", "-o", default=None, help="保存目录 (默认 ~/Downloads/douyin)")
 @click.option("--music", is_flag=True, help="同时下载背景音乐")
+@click.option("--audio", is_flag=True, help="下载完成后从视频中提取同名 MP3，保留原视频")
+@click.option("--audio-delete-video", is_flag=True, help="下载完成后提取同名 MP3，并删除原视频")
 @click.option("--limit", type=int, default=0, help="批量下载: 限制作品数量，默认全部 (需配合 --user)")
 @click.option("--user", is_flag=True, help="批量下载该用户的全部作品 (URL_OR_ID 为 sec_user_id)")
 @click.option("--account", default=None, help="使用指定账号")
 @click.option("--json-output", "as_json", is_flag=True, help="仅输出下载链接 (JSON)")
-def download(url_or_id, output_dir, music, limit, user, account, as_json):
+def download(url_or_id, output_dir, music, audio, audio_delete_video, limit, user, account, as_json):
     """
     下载抖音视频/图片（无水印）。支持短索引和批量下载。
 
@@ -44,13 +47,28 @@ def download(url_or_id, output_dir, music, limit, user, account, as_json):
     output_dir = output_dir or cfg["default"].get("download_dir", os.path.expanduser("~/Downloads/douyin"))
     os.makedirs(output_dir, exist_ok=True)
 
+    if audio and audio_delete_video:
+        error("--audio 和 --audio-delete-video 不能同时使用")
+        raise SystemExit(1)
+
+    extract_downloaded_audio = audio or audio_delete_video
     client = DouyinAPIClient.from_config(account)
 
     try:
         # 批量下载用户作品
         if user:
             browser_account = account or cfg["default"].get("account", "default")
-            _batch_download_user(client, url_or_id, output_dir, music, limit, as_json, browser_account=browser_account)
+            _batch_download_user(
+                client,
+                url_or_id,
+                output_dir,
+                music,
+                limit,
+                as_json,
+                extract_downloaded_audio=extract_downloaded_audio,
+                delete_video_after_audio=audio_delete_video,
+                browser_account=browser_account,
+            )
             return
 
         # Resolve aweme_id (支持短索引)
@@ -103,6 +121,12 @@ def download(url_or_id, output_dir, music, limit, user, account, as_json):
             info("正在下载视频...")
             _download_with_progress(client, video_url, video_path)
             downloaded_files.append(video_path)
+            if extract_downloaded_audio:
+                audio_path = _extract_downloaded_audio_file(video_path, delete_video=audio_delete_video)
+                if audio_delete_video:
+                    downloaded_files[-1] = audio_path
+                else:
+                    downloaded_files.append(audio_path)
 
         # Download images (for image posts)
         image_urls = dl_info.get("images")
@@ -150,6 +174,8 @@ def _batch_download_user(
     limit: int,
     as_json: bool,
     *,
+    extract_downloaded_audio: bool = False,
+    delete_video_after_audio: bool = False,
     browser_account: str | None = None,
 ):
     """批量下载用户作品。"""
@@ -225,8 +251,11 @@ def _batch_download_user(
                 else:
                     info(f"[{i}/{len(target_posts)}] {safe[:30]}...")
                     _download_with_progress(client, video_url, video_path)
+                    if extract_downloaded_audio:
+                        _extract_downloaded_audio_file(video_path, delete_video=delete_video_after_audio)
                     downloaded += 1
-                    item_progress["file"] = os.path.basename(video_path)
+                    final_media_path = _get_audio_output_path(video_path) if delete_video_after_audio else video_path
+                    item_progress["file"] = os.path.basename(final_media_path)
 
             # Images
             images = dl_info.get("images")
@@ -401,12 +430,15 @@ def _media_exists(video_path: str, user_dir: str, index: int, safe: str) -> bool
     if os.path.exists(video_path):
         return True
     normalized_video_name = _strip_numeric_prefix(os.path.basename(video_path))
+    normalized_audio_name = f"{safe}.mp3"
     normalized_mp3_name = f"{safe}.transcribe.mp3"
     normalized_json_name = f"{safe}.json"
     image_prefix = f"{safe}_"
     for name in os.listdir(user_dir):
         normalized_name = _strip_numeric_prefix(name)
         if normalized_name == normalized_video_name:
+            return True
+        if normalized_name == normalized_audio_name:
             return True
         if normalized_name == normalized_mp3_name:
             return True
@@ -449,3 +481,26 @@ def _download_atomically(client: DouyinAPIClient, url: str, output_path: str):
     temp_path = f"{output_path}.part"
     client.download_file(url, temp_path)
     os.replace(temp_path, output_path)
+
+
+def _extract_downloaded_audio_file(video_path: str, *, delete_video: bool) -> str:
+    """对刚下载完成的视频做音频后处理。"""
+    audio_path = _get_audio_output_path(video_path)
+    temp_audio_path = f"{audio_path}.part"
+    try:
+        info(f"正在提取音频: {os.path.basename(audio_path)}")
+        extract_audio(video_path, temp_audio_path)
+        os.replace(temp_audio_path, audio_path)
+    except MediaError:
+        if os.path.exists(temp_audio_path):
+            os.remove(temp_audio_path)
+        raise
+
+    if delete_video and os.path.exists(video_path):
+        os.remove(video_path)
+
+    return audio_path
+
+
+def _get_audio_output_path(video_path: str) -> str:
+    return os.path.splitext(video_path)[0] + ".mp3"

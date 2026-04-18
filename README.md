@@ -87,6 +87,8 @@ dy comments 1                            # View comments (Playwright)
 dy dl 1                                  # Download by short index
 dy download https://v.douyin.com/xxx     # Download by URL
 dy download 1234567890 --music           # Also download BGM
+dy download 1234567890 --audio           # Extract same-name mp3 after download
+dy download 1234567890 --audio-delete-video # Extract mp3 and remove the downloaded mp4
 dy dl SEC_USER_ID --user                 # Full user archive download (auto-pagination)
 dy dl SEC_USER_ID --user --limit 20      # Only download the first 20 posts
 ```
@@ -100,6 +102,8 @@ User archive download behavior:
 - reruns resume from `failed` / `pending` items in `progress.json` instead of starting from the beginning
 - existing video/image files in the target directory are skipped automatically
 - existing transcript artifacts also prevent re-downloading the original video: same-name `.transcribe.mp3` or `.json` count as already processed media
+- when `--audio` is provided, each downloaded video is post-processed into a same-name `.mp3`
+- when `--audio-delete-video` is provided, the `.mp3` is kept and the downloaded `.mp4` is removed
 - the downloader sleeps 10 seconds between posts only after it actually fetched/downloaded a remote item; direct local-file skips do not wait
 
 ### Trending & Live
@@ -134,6 +138,7 @@ Transcription behavior:
 - `.part` files are used for intermediate audio and JSON output so interrupted runs are not treated as complete
 - by default the original `.mp4`, extracted `.transcribe.mp3`, and transcript/subtitle output are all kept
 - when `--delete-video` is provided, the original `.mp4` is removed after a successful transcription, while the `.transcribe.mp3` and `.srt/.json` are kept
+
 - `--format json` writes structured transcript JSON with both `text_raw` and corrected `text`; you can configure `asr.replace_map` to normalize common misrecognitions
 
 ### Publish
