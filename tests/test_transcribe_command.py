@@ -31,7 +31,7 @@ def test_transcribe_single_file_creates_json(monkeypatch, tmp_path):
             f.write(b"audio")
 
     monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
-    monkeypatch.setattr("dy_cli.commands.transcribe.WhisperWebserviceClient.from_config", lambda: fake_asr)
+    monkeypatch.setattr("dy_cli.commands.transcribe.create_asr_client", lambda: fake_asr)
 
     result = CliRunner().invoke(cli, ["transcribe", str(video_path), "--format", "json"])
 
@@ -55,7 +55,7 @@ def test_transcribe_single_audio_file_skips_ffmpeg(monkeypatch, tmp_path):
         raise AssertionError("extract_audio should not be called for direct audio transcription")
 
     monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
-    monkeypatch.setattr("dy_cli.commands.transcribe.WhisperWebserviceClient.from_config", lambda: fake_asr)
+    monkeypatch.setattr("dy_cli.commands.transcribe.create_asr_client", lambda: fake_asr)
 
     result = CliRunner().invoke(cli, ["transcribe", str(audio_path)])
 
@@ -75,7 +75,7 @@ def test_transcribe_defaults_to_srt_output(monkeypatch, tmp_path):
             f.write(b"audio")
 
     monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
-    monkeypatch.setattr("dy_cli.commands.transcribe.WhisperWebserviceClient.from_config", lambda: fake_asr)
+    monkeypatch.setattr("dy_cli.commands.transcribe.create_asr_client", lambda: fake_asr)
 
     result = CliRunner().invoke(cli, ["transcribe", str(video_path)])
 
@@ -98,7 +98,7 @@ def test_transcribe_single_video_reuses_same_name_mp3(monkeypatch, tmp_path):
         raise AssertionError("extract_audio should not be called when same-name audio already exists")
 
     monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
-    monkeypatch.setattr("dy_cli.commands.transcribe.WhisperWebserviceClient.from_config", lambda: fake_asr)
+    monkeypatch.setattr("dy_cli.commands.transcribe.create_asr_client", lambda: fake_asr)
 
     result = CliRunner().invoke(cli, ["transcribe", str(video_path)])
 
@@ -120,7 +120,7 @@ def test_transcribe_uses_ffmpeg_friendly_temp_audio_suffix(monkeypatch, tmp_path
             f.write(b"audio")
 
     monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
-    monkeypatch.setattr("dy_cli.commands.transcribe.WhisperWebserviceClient.from_config", lambda: fake_asr)
+    monkeypatch.setattr("dy_cli.commands.transcribe.create_asr_client", lambda: fake_asr)
 
     result = CliRunner().invoke(cli, ["transcribe", str(video_path)])
 
@@ -138,7 +138,7 @@ def test_transcribe_single_file_delete_video_keeps_mp3_and_json(monkeypatch, tmp
             f.write(b"audio")
 
     monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
-    monkeypatch.setattr("dy_cli.commands.transcribe.WhisperWebserviceClient.from_config", lambda: fake_asr)
+    monkeypatch.setattr("dy_cli.commands.transcribe.create_asr_client", lambda: fake_asr)
 
     result = CliRunner().invoke(cli, ["transcribe", str(video_path), "--delete-video"])
 
@@ -161,7 +161,7 @@ def test_transcribe_dir_skips_existing_json(monkeypatch, tmp_path):
             f.write(b"audio")
 
     monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
-    monkeypatch.setattr("dy_cli.commands.transcribe.WhisperWebserviceClient.from_config", lambda: fake_asr)
+    monkeypatch.setattr("dy_cli.commands.transcribe.create_asr_client", lambda: fake_asr)
 
     result = CliRunner().invoke(cli, ["transcribe", str(tmp_path)])
 
@@ -202,7 +202,7 @@ def test_transcribe_dir_writes_progress_and_resumes(monkeypatch, tmp_path):
             f.write(b"audio")
 
     monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
-    monkeypatch.setattr("dy_cli.commands.transcribe.WhisperWebserviceClient.from_config", lambda: fake_asr)
+    monkeypatch.setattr("dy_cli.commands.transcribe.create_asr_client", lambda: fake_asr)
 
     result = CliRunner().invoke(cli, ["transcribe", str(tmp_path)])
 
@@ -225,7 +225,7 @@ def test_transcribe_dir_prefers_same_name_audio_over_video(monkeypatch, tmp_path
         raise AssertionError("extract_audio should not be called when directory already contains same-name audio")
 
     monkeypatch.setattr("dy_cli.commands.transcribe.extract_audio", fake_extract)
-    monkeypatch.setattr("dy_cli.commands.transcribe.WhisperWebserviceClient.from_config", lambda: fake_asr)
+    monkeypatch.setattr("dy_cli.commands.transcribe.create_asr_client", lambda: fake_asr)
 
     result = CliRunner().invoke(cli, ["transcribe", str(tmp_path)])
     progress = json.loads((tmp_path / "transcribe_progress.json").read_text(encoding="utf-8"))

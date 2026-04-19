@@ -29,6 +29,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "download_dir": os.path.expanduser("~/Downloads/douyin"),
     },
     "asr": {
+        "provider": "whisper_webservice",
         "replace_map": {},
         "whisper_webservice": {
             "base_url": "http://127.0.0.1:9000",
@@ -39,6 +40,19 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "encode": True,
             "timeout": 600,
             "initial_prompt": "",
+        },
+        "tencent_asr": {
+            "secret_id": "",
+            "secret_key": "",
+            "region": "ap-shanghai",
+            "engine_model_type": "16k_zh",
+            "channel_num": 1,
+            "res_text_format": 3,
+            "convert_num_mode": 1,
+            "speaker_diarization": 0,
+            "poll_interval_seconds": 5,
+            "max_wait_seconds": 1800,
+            "chunk_duration_seconds": 1200,
         },
     },
 }

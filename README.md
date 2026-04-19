@@ -180,9 +180,15 @@ dy status                                # Login status
 dy account list                          # List accounts
 dy config show                           # Show config
 dy config set api.proxy http://...       # Set proxy
+dy config set asr.provider whisper_webservice
 dy config set asr.whisper_webservice.base_url http://127.0.0.1:9000
 dy config set asr.whisper_webservice.language zh
 dy config set asr.whisper_webservice.vad_filter true
+dy config set asr.provider tencent_asr
+dy config set asr.tencent_asr.secret_id AKID...
+dy config set asr.tencent_asr.secret_key ...
+dy config set asr.tencent_asr.region ap-shanghai
+dy config set asr.tencent_asr.engine_model_type 16k_zh
 dy config set asr.replace_map '{"龙非":"龙飞"}'
 ```
 

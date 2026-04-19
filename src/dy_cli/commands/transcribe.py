@@ -4,11 +4,14 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime, timezone
+from typing import Any
 
 import click
 
 from dy_cli.services.media import MediaError, extract_audio
-from dy_cli.services.whisper_webservice import WhisperWebserviceClient, WhisperWebserviceError
+from dy_cli.services.asr import create_asr_client
+from dy_cli.services.tencent_asr import TencentAsrError
+from dy_cli.services.whisper_webservice import WhisperWebserviceError
 from dy_cli.services.transcribe_state import (
     init_progress_for_extension,
     mark_progress,
@@ -30,7 +33,7 @@ AUDIO_EXTENSIONS = {".aac", ".flac", ".m4a", ".mp3", ".ogg", ".wav"}
 @click.option("--format", "output_format", type=click.Choice(["srt", "json"]), default="srt", show_default=True, help="输出格式")
 def transcribe(path: str, force: bool, audio_keep: bool, delete_video: bool, limit: int, output_format: str):
     """对本地已下载视频进行语音转写。"""
-    client = WhisperWebserviceClient.from_config()
+    client = create_asr_client()
 
     if os.path.isfile(path):
         _transcribe_file(path, client, force=force, audio_keep=audio_keep, delete_video=delete_video, output_format=output_format)
@@ -41,7 +44,7 @@ def transcribe(path: str, force: bool, audio_keep: bool, delete_video: bool, lim
 
 def _transcribe_dir(
     path: str,
-    client: WhisperWebserviceClient,
+    client: Any,
     *,
     force: bool,
     audio_keep: bool,
@@ -71,7 +74,7 @@ def _transcribe_dir(
         try:
             _transcribe_file(file_path, client, force=force, audio_keep=audio_keep, delete_video=delete_video, output_format=output_format)
             mark_progress(progress, progress_path, filename, index, "done", output_file=os.path.basename(output_path))
-        except (MediaError, WhisperWebserviceError) as e:
+        except (MediaError, WhisperWebserviceError, TencentAsrError) as e:
             warning(f"[{index}/{len(files)}] 转写失败: {filename} ({e})")
             mark_progress(progress, progress_path, filename, index, "failed", output_file=os.path.basename(output_path), error=str(e))
 
@@ -80,7 +83,7 @@ def _transcribe_dir(
 
 def _transcribe_file(
     path: str,
-    client: WhisperWebserviceClient,
+    client: Any,
     *,
     force: bool,
     audio_keep: bool,
