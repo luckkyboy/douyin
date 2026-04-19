@@ -103,12 +103,12 @@ def test_tencent_flash_asr_from_config_parses_string_replace_map(monkeypatch):
         lambda: {
             "asr": {
                 "tencent": {
+                    "app_id": "12345",
                     "secret_id": "sid",
                     "secret_key": "skey",
                 },
                 "replace_map": '{"龙非":"龙飞"}',
-                "tencent_flash_asr": {
-                    "app_id": "12345",
+                "tencent_asr_flash": {
                     "engine_type": "16k_zh",
                     "speaker_diarization": 0,
                     "filter_dirty": 0,
@@ -131,4 +131,6 @@ def test_tencent_flash_asr_from_config_parses_string_replace_map(monkeypatch):
     client = TencentFlashAsrClient.from_config()
 
     assert client.replace_map == {"龙非": "龙飞"}
+    assert client.app_id == "12345"
     assert client.secret_id == "sid"
+    assert client.engine_type == "16k_zh"

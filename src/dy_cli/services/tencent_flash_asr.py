@@ -71,9 +71,9 @@ class TencentFlashAsrClient:
     def from_config(cls) -> "TencentFlashAsrClient":
         asr_cfg = config.load_config()["asr"]
         tencent_common_cfg = asr_cfg.get("tencent", {})
-        flash_cfg = asr_cfg.get("tencent_flash_asr", {})
+        flash_cfg = asr_cfg.get("tencent_asr_flash", {})
         return cls(
-            app_id=flash_cfg.get("app_id", ""),
+            app_id=tencent_common_cfg.get("app_id", ""),
             secret_id=tencent_common_cfg.get("secret_id", flash_cfg.get("secret_id", "")),
             secret_key=tencent_common_cfg.get("secret_key", flash_cfg.get("secret_key", "")),
             engine_type=flash_cfg.get("engine_type", "16k_zh"),

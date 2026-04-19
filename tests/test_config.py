@@ -24,6 +24,7 @@ class TestLoadSave:
         assert cfg["default"]["engine"] == "auto"
         assert cfg["api"]["timeout"] == 30
         assert cfg["asr"]["provider"] == "whisper_webservice"
+        assert cfg["asr"]["tencent"]["app_id"] == ""
         assert cfg["asr"]["tencent"]["secret_id"] == ""
         assert cfg["asr"]["tencent"]["secret_key"] == ""
         assert cfg["asr"]["whisper_webservice"]["base_url"] == "http://127.0.0.1:9000"
@@ -32,8 +33,8 @@ class TestLoadSave:
         assert cfg["asr"]["whisper_webservice"]["word_timestamps"] is False
         assert cfg["asr"]["tencent_asr"]["region"] == "ap-shanghai"
         assert cfg["asr"]["tencent_asr"]["engine_model_type"] == "16k_zh"
-        assert cfg["asr"]["tencent_flash_asr"]["engine_type"] == "16k_zh"
-        assert cfg["asr"]["tencent_flash_asr"]["first_channel_only"] == 1
+        assert cfg["asr"]["tencent_asr_flash"]["engine_type"] == "16k_zh"
+        assert cfg["asr"]["tencent_asr_flash"]["first_channel_only"] == 1
         assert cfg["asr"]["replace_map"] == {}
 
     def test_save_and_load(self):

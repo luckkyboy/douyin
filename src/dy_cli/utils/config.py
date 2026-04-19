@@ -32,6 +32,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "provider": "whisper_webservice",
         "replace_map": {},
         "tencent": {
+            "app_id": "",
             "secret_id": "",
             "secret_key": "",
         },
@@ -56,8 +57,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "max_wait_seconds": 1800,
             "chunk_duration_seconds": 1200,
         },
-        "tencent_flash_asr": {
-            "app_id": "",
+        "tencent_asr_flash": {
             "engine_type": "16k_zh",
             "speaker_diarization": 0,
             "filter_dirty": 0,
