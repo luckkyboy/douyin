@@ -99,10 +99,12 @@ def test_tencent_asr_from_config_parses_string_replace_map(monkeypatch):
         "dy_cli.services.tencent_asr.config.load_config",
         lambda: {
             "asr": {
-                "replace_map": '{"龙非":"龙飞"}',
-                "tencent_asr": {
+                "tencent": {
                     "secret_id": "sid",
                     "secret_key": "skey",
+                },
+                "replace_map": '{"龙非":"龙飞"}',
+                "tencent_asr": {
                     "region": "ap-shanghai",
                     "engine_model_type": "16k_zh",
                     "channel_num": 1,
@@ -120,3 +122,4 @@ def test_tencent_asr_from_config_parses_string_replace_map(monkeypatch):
     client = TencentAsrClient.from_config()
 
     assert client.replace_map == {"龙非": "龙飞"}
+    assert client.secret_id == "sid"

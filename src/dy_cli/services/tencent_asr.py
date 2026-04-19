@@ -60,10 +60,11 @@ class TencentAsrClient:
     @classmethod
     def from_config(cls) -> "TencentAsrClient":
         asr_cfg = config.load_config()["asr"]
+        tencent_common_cfg = asr_cfg.get("tencent", {})
         tencent_cfg = asr_cfg.get("tencent_asr", {})
         return cls(
-            secret_id=tencent_cfg.get("secret_id", ""),
-            secret_key=tencent_cfg.get("secret_key", ""),
+            secret_id=tencent_common_cfg.get("secret_id", tencent_cfg.get("secret_id", "")),
+            secret_key=tencent_common_cfg.get("secret_key", tencent_cfg.get("secret_key", "")),
             region=tencent_cfg.get("region", "ap-shanghai"),
             engine_model_type=tencent_cfg.get("engine_model_type", "16k_zh"),
             channel_num=tencent_cfg.get("channel_num", 1),

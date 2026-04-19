@@ -23,6 +23,16 @@ def test_create_asr_client_supports_tencent(monkeypatch):
     assert client is fake_client
 
 
+def test_create_asr_client_supports_tencent_flash(monkeypatch):
+    fake_client = object()
+    monkeypatch.setattr("dy_cli.services.asr.config.get", lambda key, default=None: "tencent_asr_flash")
+    monkeypatch.setattr("dy_cli.services.asr.TencentFlashAsrClient.from_config", lambda: fake_client)
+
+    client = create_asr_client()
+
+    assert client is fake_client
+
+
 def test_create_asr_client_rejects_unknown_provider(monkeypatch):
     monkeypatch.setattr("dy_cli.services.asr.config.get", lambda key, default=None: "unknown")
 

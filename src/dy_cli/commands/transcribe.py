@@ -11,6 +11,7 @@ import click
 from dy_cli.services.media import MediaError, extract_audio
 from dy_cli.services.asr import create_asr_client
 from dy_cli.services.tencent_asr import TencentAsrError
+from dy_cli.services.tencent_flash_asr import TencentFlashAsrError
 from dy_cli.services.whisper_webservice import WhisperWebserviceError
 from dy_cli.services.transcribe_state import (
     init_progress_for_extension,
@@ -74,7 +75,7 @@ def _transcribe_dir(
         try:
             _transcribe_file(file_path, client, force=force, audio_keep=audio_keep, delete_video=delete_video, output_format=output_format)
             mark_progress(progress, progress_path, filename, index, "done", output_file=os.path.basename(output_path))
-        except (MediaError, WhisperWebserviceError, TencentAsrError) as e:
+        except (MediaError, WhisperWebserviceError, TencentAsrError, TencentFlashAsrError) as e:
             warning(f"[{index}/{len(files)}] 转写失败: {filename} ({e})")
             mark_progress(progress, progress_path, filename, index, "failed", output_file=os.path.basename(output_path), error=str(e))
 

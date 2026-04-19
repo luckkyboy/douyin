@@ -31,6 +31,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "asr": {
         "provider": "whisper_webservice",
         "replace_map": {},
+        "tencent": {
+            "secret_id": "",
+            "secret_key": "",
+        },
         "whisper_webservice": {
             "base_url": "http://127.0.0.1:9000",
             "language": "zh",
@@ -42,8 +46,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "initial_prompt": "",
         },
         "tencent_asr": {
-            "secret_id": "",
-            "secret_key": "",
             "region": "ap-shanghai",
             "engine_model_type": "16k_zh",
             "channel_num": 1,
@@ -53,6 +55,23 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "poll_interval_seconds": 5,
             "max_wait_seconds": 1800,
             "chunk_duration_seconds": 1200,
+        },
+        "tencent_flash_asr": {
+            "app_id": "",
+            "engine_type": "16k_zh",
+            "speaker_diarization": 0,
+            "filter_dirty": 0,
+            "filter_modal": 0,
+            "filter_punc": 0,
+            "convert_num_mode": 1,
+            "word_info": 0,
+            "first_channel_only": 1,
+            "sentence_max_length": 0,
+            "hotword_id": "",
+            "customization_id": "",
+            "hotword_list": "",
+            "input_sample_rate": 0,
+            "timeout": 120,
         },
     },
 }
