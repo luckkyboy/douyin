@@ -69,7 +69,7 @@ def test_tencent_flash_asr_posts_audio_with_expected_signature(monkeypatch, tmp_
     result = client.transcribe(str(audio_path))
 
     expected_query = (
-        "appid=12345&convert_num_mode=1&engine_type=16k_zh&filter_dirty=0&filter_modal=0&filter_punc=0"
+        "convert_num_mode=1&engine_type=16k_zh&filter_dirty=0&filter_modal=0&filter_punc=0"
         "&first_channel_only=1&secretid=sid&speaker_diarization=0&timestamp=1700000000&voice_format=mp3&word_info=1"
     )
     expected_source = f"POSTasr.cloud.tencent.com/asr/flash/v1/12345?{expected_query}"

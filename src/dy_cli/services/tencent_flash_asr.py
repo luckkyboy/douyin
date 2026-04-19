@@ -139,7 +139,6 @@ class TencentFlashAsrClient:
 
     def _build_params(self, voice_format: str, timestamp: int) -> dict[str, str | int]:
         params: dict[str, str | int] = {
-            "appid": self.app_id,
             "secretid": self.secret_id,
             "engine_type": self.engine_type,
             "voice_format": voice_format,
