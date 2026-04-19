@@ -7,7 +7,7 @@ import hmac
 import json
 import time
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 import httpx
 
@@ -167,7 +167,7 @@ class TencentAsrClient:
         return response_body
 
     def _build_headers(self, action: str, payload_json: str, timestamp: int) -> dict[str, str]:
-        date = datetime.fromtimestamp(timestamp, UTC).strftime("%Y-%m-%d")
+        date = datetime.fromtimestamp(timestamp, timezone.utc).strftime("%Y-%m-%d")
         canonical_headers = f"content-type:application/json; charset=utf-8\nhost:{self.host}\n"
         signed_headers = "content-type;host"
         canonical_request = "\n".join(
